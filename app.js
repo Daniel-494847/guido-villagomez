@@ -131,6 +131,9 @@ $("impCurso").value = cursoId("2do de Secundaria");
 PARALELOS.forEach(p => $("paralelo").add(new Option(p, p)));
 $("fParalelo").add(new Option("Todos", ""));
 PARALELOS.forEach(p => $("fParalelo").add(new Option(p, p)));
+const urlEstudiantes = new URL(window.location.href);
+urlEstudiantes.searchParams.set("modo", "estudiante");
+$("linkEstudiantes").value = urlEstudiantes.href;
 
 (async () => {
   try { await cargarCursos(); }
@@ -159,6 +162,22 @@ function mostrar(v) {
   $("tabAdm").classList.toggle("fw-semibold", v === "adm");
   $("tabAdm").classList.toggle("btn-outline-light", v !== "adm");
   if (v === "adm") actualizarVistaPersonal();
+}
+
+async function compartirEnlaceEstudiantes() {
+  const campo = $("linkEstudiantes");
+  const estado = $("estadoEnlaceEstudiantes");
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+      throw new Error("El navegador no permite copiar automáticamente.");
+    }
+    await navigator.clipboard.writeText(campo.value);
+    estado.textContent = "Enlace copiado. Ya puedes compartirlo con tus estudiantes.";
+  } catch (e) {
+    campo.focus();
+    campo.select();
+    estado.textContent = "No se pudo copiar automáticamente. El enlace está seleccionado para que lo copies manualmente.";
+  }
 }
 
 function actualizarVistaPersonal() {
@@ -577,11 +596,27 @@ async function cargarAdmin() {
   try {
     if (rolPersonal === "admin") await crearColecciones();
     else await cargarCursos();
+    await cargarCantidadPreguntas();
     await calificarPendientes();
     RESULTADOS = await leerResultados();
     pintarCursos();
     reporte();
   } catch (e) { avisarError("Error al cargar: " + e.message); }
+}
+
+async function cargarCantidadPreguntas() {
+  await Promise.all(CURSOS.map(async nombre => {
+    const id = cursoId(nombre), curso = CACHE[id];
+    if (!curso || Number.isInteger(curso.cantidadPreguntas)) return;
+
+    const documento = await db.collection("pruebas").doc(id).get();
+    const prueba = documento.exists ? documento.data() : null;
+    curso.cantidadPreguntas = prueba
+      ? Number.isInteger(prueba.cantidad)
+        ? prueba.cantidad
+        : Array.isArray(prueba.preguntas) ? prueba.preguntas.length : 0
+      : 0;
+  }));
 }
 
 // El personal (con acceso a las claves en "examenes") recalcula nota/aciertos/desaciertos
@@ -628,7 +663,7 @@ function pintarCursos() {
       <td>${cant}</td>
       <td>
         ${esAdmin ? `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="guardarFila('${id}')">Guardar</button>
-        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Preguntas (${(c.cantidadPreguntas != null ? c.cantidadPreguntas : "...")})</button>` : ""}
+        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${c.cantidadPreguntas})</button>` : ""}
         ${esAdmin ? `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarRegistrosCurso('${id}')">Eliminar estudiantes</button>` : ""}
         <button class="btn btn-sm btn-primary me-1 mb-1" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>
         ${c.activo
