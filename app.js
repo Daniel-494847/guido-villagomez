@@ -601,7 +601,7 @@ async function cargarAdmin() {
     } else {
       await cargarCursos();
     }
-    etapa = "cargar conteo de preguntas";
+    etapa = "leer conteos de exámenes";
     await cargarCantidadPreguntas();
     etapa = "recalificar resultados pendientes";
     await calificarPendientes();
@@ -619,12 +619,12 @@ async function cargarCantidadPreguntas() {
     const id = cursoId(nombre), curso = CACHE[id];
     if (!curso || Number.isInteger(curso.cantidadPreguntas)) return;
 
-    const documento = await db.collection("pruebas").doc(id).get();
-    const prueba = documento.exists ? documento.data() : null;
-    curso.cantidadPreguntas = prueba
-      ? Number.isInteger(prueba.cantidad)
-        ? prueba.cantidad
-        : Array.isArray(prueba.preguntas) ? prueba.preguntas.length : 0
+    const documento = await db.collection("examenes").doc(id).get();
+    const examen = documento.exists ? documento.data() : null;
+    curso.cantidadPreguntas = examen
+      ? Number.isInteger(examen.cantidad)
+        ? examen.cantidad
+        : Array.isArray(examen.preguntas) ? examen.preguntas.length : 0
       : 0;
   }));
 }
@@ -665,6 +665,7 @@ function pintarCursos() {
   $("tablaCursos").innerHTML = CURSOS.map(nombre => {
     const id = cursoId(nombre), c = CACHE[id];
     const cant = porCurso(id).length;
+    const cantidadPreguntas = Number.isInteger(c.cantidadPreguntas) ? c.cantidadPreguntas : "sin dato";
     return `<tr>
       <td>${esc(nombre)}</td>
       <td><select class="form-select form-select-sm" id="ar_${id}" ${esAdmin ? "" : "disabled"}>${AREAS.map(a => `<option ${a === c.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></td>
@@ -673,7 +674,7 @@ function pintarCursos() {
       <td>${cant}</td>
       <td>
         ${esAdmin ? `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="guardarFila('${id}')">Guardar</button>
-        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${c.cantidadPreguntas})</button>` : ""}
+        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${cantidadPreguntas})</button>` : ""}
         ${esAdmin ? `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarRegistrosCurso('${id}')">Eliminar estudiantes</button>` : ""}
         <button class="btn btn-sm btn-primary me-1 mb-1" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>
         ${c.activo
