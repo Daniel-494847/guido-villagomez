@@ -593,15 +593,25 @@ function compararNomina(a, b) {
 async function cargarAdmin() {
   if (!usuarioPersonal || !["admin", "docente"].includes(rolPersonal)) return;
   $("tablaCursos").innerHTML = "<tr><td colspan='6'>Cargando…</td></tr>";
+  let etapa = "cargar cursos";
   try {
-    if (rolPersonal === "admin") await crearColecciones();
-    else await cargarCursos();
+    if (rolPersonal === "admin") {
+      etapa = "verificar y crear cursos";
+      await crearColecciones();
+    } else {
+      await cargarCursos();
+    }
+    etapa = "cargar conteo de preguntas";
     await cargarCantidadPreguntas();
+    etapa = "recalificar resultados pendientes";
     await calificarPendientes();
+    etapa = "leer resultados";
     RESULTADOS = await leerResultados();
     pintarCursos();
     reporte();
-  } catch (e) { avisarError("Error al cargar: " + e.message); }
+  } catch (e) {
+    avisarError(`Firestore rechazó el paso "${etapa}" en ${firebaseConfig.projectId}: ${e.message} Revisa que las reglas estén desplegadas en este proyecto y que tu documento usuarios/{UID} tenga rol "admin" o "docente".`);
+  }
 }
 
 async function cargarCantidadPreguntas() {
