@@ -1,6 +1,12 @@
 # Evaluación en línea
 
-La aplicación es estática y puede publicarse en GitHub Pages. La base de datos y la autenticación funcionan en Firebase; GitHub Pages no aloja la base de datos.
+Aplicación web para que estudiantes rindan evaluaciones en línea y el personal docente administre exámenes, revise resultados y descargue reportes. Se publica como sitio estático en GitHub Pages y utiliza Firebase Authentication y Cloud Firestore.
+
+**Descripción breve para GitHub:**
+
+> Plataforma de evaluaciones escolares en línea con gestión de exámenes, resultados y reportes. Publicada en GitHub Pages y conectada a Firebase.
+
+GitHub Pages aloja la interfaz web; la base de datos y la autenticación se configuran por separado en Firebase.
 
 ## Configuración de Firebase
 
@@ -18,7 +24,7 @@ La configuración del cliente en `app.js`, `.firebaserc` y `firebase.json` apunt
    ```
 
 6. Inicia sesión en la aplicación con la cuenta administrativa y pulsa **Crear colecciones faltantes**. Esto crea los cursos y preguntas de ejemplo; luego podrás importar los exámenes reales.
-7. En GitHub, habilita **Settings → Pages** para publicar la raíz del repositorio (o configura tu flujo de Pages preferido).
+7. En GitHub, abre **Settings → Pages**. En **Build and deployment**, elige **Deploy from a branch**, selecciona la rama que contiene estos archivos (por ejemplo, `main`) y la carpeta **/(root)**, y pulsa **Save**. El sitio quedará disponible en `https://daniel-494847.github.io/guido-villagomez/`.
 
 ## Enlace directo para estudiantes
 
