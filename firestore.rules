@@ -10,11 +10,6 @@ service cloud.firestore {
         request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
-    function cursoActivo(cursoId) {
-      return exists(/databases/$(database)/documents/cursos/$(cursoId)) &&
-        get(/databases/$(database)/documents/cursos/$(cursoId)).data.activo == true;
-    }
-
     function esAdministrador() {
       return autenticado() &&
         exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) &&
@@ -27,8 +22,13 @@ service cloud.firestore {
         get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['admin', 'docente'];
     }
 
+    function cursoActivo(cursoId) {
+      return exists(/databases/$(database)/documents/cursos/$(cursoId)) &&
+        get(/databases/$(database)/documents/cursos/$(cursoId)).data.activo == true;
+    }
+
     match /usuarios/{uid} {
-      allow get: if autenticado() && request.auth.uid == uid || esAdministrador();
+      allow get: if (autenticado() && request.auth.uid == uid) || esAdministrador();
       allow list: if esAdministrador();
       allow create, update, delete: if esAdministrador();
     }
@@ -38,28 +38,17 @@ service cloud.firestore {
       allow write: if esAdministrador();
     }
 
-    // Cursos: metadatos SIN preguntas (nombre, área, minutos, estado).
-    // Los estudiantes pueden leerlos para saber área y tiempo.
-    match /cursos/{cursoId} {
-      allow read: if true;
-      allow write: if esAdministrador();
-    }
-
-    // PRUEBAS: preguntas SIN la clave de respuesta correcta (campo c).
-    // Es lo único de preguntas que un estudiante anónimo puede leer.
+    // Preguntas sin respuestas correctas: disponibles para los estudiantes.
     match /pruebas/{cursoId} {
       allow read: if true;
       allow write: if esAdministrador();
     }
 
-    // EXÁMENES: pregunta + OPCIONES + CLAVE (c) + calificación.
-    // Solo el personal autorizado puede leer o escribir.
+    // Exámenes completos y claves solo para el personal autenticado.
     match /examenes/{cursoId} {
       allow read, write: if esPersonal();
     }
 
-    // CLAVES DE CALIFICACIÓN: respuestas correctas por pregunta.
-    // Solo el personal autorizado puede leer (se usan para recalcular notas).
     match /claves/{cursoId} {
       allow read, write: if esPersonal();
     }
@@ -78,7 +67,6 @@ service cloud.firestore {
       allow update, delete: if esAdministrador();
     }
 
-    // Borradores de respuestas guardados pregunta por pregunta
     match /respuestas/{docId} {
       allow get: if esPersonal() ||
         (esAnonimo() &&
@@ -92,18 +80,19 @@ service cloud.firestore {
     }
 
     match /resultados/{resultadoId} {
-      // Solo el personal puede leer resultados y notas.
       allow get, list: if esPersonal();
-      // El estudiante envía solo sus respuestas (sin nota ni claves);
-      // el personal recalcula y guarda nota/aciertos/desaciertos.
       allow create: if esAnonimo() &&
         request.resource.data.authUid == request.auth.uid &&
+        exists(/databases/$(database)/documents/estudiantes/$(resultadoId)) &&
+        get(/databases/$(database)/documents/estudiantes/$(resultadoId)).data.authUid == request.auth.uid &&
+        get(/databases/$(database)/documents/estudiantes/$(resultadoId)).data.cursoId == request.resource.data.cursoId &&
         request.resource.data.respuestas is list &&
         request.resource.data.cursoId is string &&
         request.resource.data.aciertos == 0 &&
-        request.resource.data.desaciertos == 0 &&
+        request.resource.data.desaciertos == request.resource.data.total &&
         request.resource.data.nota == 0;
-      allow update, delete: if esAdministrador();
+      allow update: if esPersonal();
+      allow delete: if esAdministrador();
     }
   }
 }

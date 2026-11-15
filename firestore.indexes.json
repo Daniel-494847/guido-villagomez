@@ -1,0 +1,26 @@
+[
+  {
+    "collectionGroup": "resultados",
+    "queryScope": "COLLECTION",
+    "fields": [
+      {
+        "fieldPath": "cursoId",
+        "arrayConfig": "CONTAINS"
+      },
+      {
+        "fieldPath": "fecha",
+        "order": "ASCENDING"
+      }
+    ]
+  },
+  {
+    "collectionGroup": "estudiantes",
+    "queryScope": "COLLECTION",
+    "fields": [
+      {
+        "fieldPath": "cursoId",
+        "arrayConfig": "CONTAINS"
+      }
+    ]
+  }
+]
