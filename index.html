@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluación en línea</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body class="bg-body-tertiary">
+
+<header class="bg-primary text-white px-3 py-3">
+  <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <h1 class="h4 mb-0">📝 Evaluación en línea</h1>
+  <nav class="d-flex gap-2">
+    <button id="tabEst" class="btn btn-light text-primary fw-semibold" onclick="mostrar('est')">Estudiante</button>
+    <button id="tabAdm" class="btn btn-outline-light" onclick="mostrar('adm')">Administrador</button>
+  </nav>
+  </div>
+</header>
+
+<main class="container my-4">
+<div id="errorGlobal" class="alert alert-danger d-none mb-3"></div>
+
+<!-- ===================== VISTA ESTUDIANTE ===================== -->
+<section id="vistaEst">
+
+  <!-- Paso 1: datos del estudiante -->
+  <div class="card shadow-sm mb-3" id="paso1">
+    <div class="card-body">
+    <h2 class="h4">Datos del estudiante</h2>
+    <div class="row g-3">
+      <div class="col-12 col-md-6"><label for="apellidos" class="form-label">Apellidos</label><input class="form-control" id="apellidos" ></div>
+      <div class="col-12 col-md-6"><label for="nombres" class="form-label">Nombres</label><input class="form-control" id="nombres" ></div>
+    </div>
+    <div class="row g-3 mt-0">
+      <div class="col-12 col-md-6"><label for="curso" class="form-label">Curso</label><select class="form-select" id="curso" onchange="actualizarCurso()"></select></div>
+      <div class="col-12 col-md-6"><label for="paralelo" class="form-label">Paralelo</label><select class="form-select" id="paralelo" onchange="actualizarCurso()"></select></div>
+    </div>
+    <p class="mb-0"><span class="badge text-bg-primary rounded-pill px-3 py-2 mt-3" id="badgeCurso"></span></p>
+    <button class="btn btn-primary mt-3" id="btnIniciar" onclick="iniciar()">Iniciar evaluación</button>
+    </div>
+  </div>
+
+  <!-- Paso 2: evaluación tipo Quizizz (una pregunta a la vez) -->
+  <div class="card shadow-sm mb-3 d-none" id="paso2">
+    <div class="card-body">
+    <div class="sticky-top bg-white border border-2 border-primary rounded p-2 text-center fs-4 fw-bold text-primary z-3 mb-3" id="reloj"></div>
+    <h2 class="h4" id="tituloEval"></h2>
+    <p class="small text-secondary" id="datosEst"></p>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="badge text-bg-primary fs-6" id="contadorPregunta"></span>
+      <span class="small text-secondary" id="contadorRespondidas"></span>
+    </div>
+    <div class="progress mb-3" style="height: 8px;"><div class="progress-bar bg-success" id="barraProgreso" style="width: 0%"></div></div>
+    <div id="preguntaActual"></div>
+    <div class="d-flex justify-content-between mt-3">
+      <button class="btn btn-outline-secondary" id="btnAnterior" onclick="preguntaMover(-1)">← Anterior</button>
+      <button class="btn btn-outline-secondary" id="btnSaltar" onclick="preguntaSaltar()">Saltar pregunta</button>
+      <button class="btn btn-primary" id="btnSiguiente" onclick="preguntaMover(1)">Siguiente →</button>
+    </div>
+    <hr>
+    <!-- Estado de cada pregunta: respondida / sin responder -->
+    <p class="small text-secondary mb-1">Estado de tus respuestas (toca un número para ir a esa pregunta):</p>
+    <div id="navPreguntas" class="d-flex flex-wrap gap-2"></div>
+    <button class="btn btn-success btn-lg w-100 mt-3" onclick="enviar(false)">✔ Terminar y enviar evaluación</button>
+    </div>
+  </div>
+
+  <!-- Modal de resumen antes de enviar -->
+  <div class="modal fade" id="modalResumen" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">Resumen de tu evaluación</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="cuerpoResumen"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Seguir revisando</button>
+          <button class="btn btn-success" id="btnConfirmarEnvio" onclick="confirmarEnvio()">Sí, enviar evaluación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paso 3: resultado -->
+  <div class="card shadow-sm mb-3 d-none" id="paso3">
+    <div class="card-body">
+    <h2 class="h4">Resultado</h2>
+    <div class="display-4 fw-bold" id="notaFinal"></div>
+    <p><span class="text-success fw-semibold" id="nAciertos"></span> · <span class="text-danger fw-semibold" id="nDesaciertos"></span></p>
+    <p class="small text-secondary" id="estadoGuardado"></p>
+    <div id="revision"></div>
+    <button class="btn btn-secondary mt-3" onclick="reiniciar()">Nuevo estudiante</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== VISTA ADMINISTRADOR ===================== -->
+<section id="vistaAdm" class="d-none">
+
+  <div id="loginPersonal" class="card shadow-sm mb-3">
+    <div class="card-body">
+    <h2 class="h4">Acceso de administrador o docente</h2>
+    <label for="emailPersonal" class="form-label">Correo</label>
+    <input class="form-control" id="emailPersonal" type="email" autocomplete="username">
+    <label for="passwordPersonal" class="form-label mt-3">Contraseña</label>
+    <input class="form-control" id="passwordPersonal" type="password" autocomplete="current-password">
+    <button class="btn btn-primary mt-3" id="btnIngresarPersonal" onclick="ingresarPersonal()">Iniciar sesión</button>
+    <p id="errorLogin" class="alert alert-danger d-none mt-3 mb-0"></p>
+    </div>
+  </div>
+
+  <div id="contenidoPersonal" class="d-none">
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+    <h2 class="h4">Evaluaciones por curso</h2>
+    <p class="small text-secondary">Define el área y el temporizador de cada curso. Al concluir una evaluación se habilitan las descargas.</p>
+    <div class="table-responsive">
+    <table class="table table-bordered table-striped table-hover align-middle">
+      <thead><tr><th>Curso</th><th>Área</th><th>Tiempo</th><th>Estado</th><th>Rindieron</th><th>Acciones</th></tr></thead>
+      <tbody id="tablaCursos"></tbody>
+    </table>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-primary" id="btnGeneral" onclick="descargarGeneral()">⬇ Resumen general con gráficos (PDF)</button>
+    <button class="btn btn-secondary" onclick="descargarInformePorCurso()">⬇ Informe de porcentajes por curso (PDF)</button>
+    <button class="btn btn-secondary" id="btnCsvTodos" onclick="descargarCSV()">⬇ Notas de todos los estudiantes (CSV)</button>
+    <button class="btn btn-secondary" onclick="cargarAdmin()">↻ Actualizar</button>
+    <button class="btn btn-secondary" id="btnCrearFaltantes" onclick="crearFaltantes()">Crear colecciones faltantes</button>
+    <button class="btn btn-secondary" onclick="cerrarSesionPersonal()">Cerrar sesión</button>
+    </div>
+    <p class="small text-secondary mt-3 mb-0" id="avisoDescargas"></p>
+    </div>
+  </div>
+
+  <div id="herramientasAdmin">
+  <!-- Editor de preguntas -->
+  <div class="card shadow-sm mb-3 d-none" id="editor"></div>
+
+  <!-- Importar examen completo desde texto -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+    <h2 class="h4">Importar examen</h2>
+    <p class="small text-secondary">Cada curso tiene su propio archivo JSON. Al cargarlo, se selecciona automáticamente el curso indicado. Los archivos plantilla de cursos sin preguntas se pueden completar antes de cargarlos. También puedes pegar el examen (preguntas "1.- ..." y opciones "a) ...") y la clave de respuestas, por ejemplo: 1c 2b 3b 4c. La prueba aplica a todos los paralelos (A, B y C) del curso.</p>
+    <div class="row g-3">
+      <div class="col-12 col-md-6"><label for="impCurso" class="form-label">Curso</label><select class="form-select" id="impCurso"></select></div>
+      <div class="col-12 col-md-6"><label for="impTitulo" class="form-label">Título</label><input class="form-control" id="impTitulo" value="Evaluación final de Ciencias Sociales"></div>
+    </div>
+    <label for="impArchivo" class="form-label mt-3">Cargar archivo independiente del curso (.json)</label>
+    <input class="form-control" type="file" id="impArchivo" accept=".json" onchange="cargarArchivoExamen(this)">
+    <p class="small text-secondary mt-3">O pega el texto y la clave a mano:</p>
+    <label for="impTexto" class="form-label">Texto del examen</label>
+    <textarea class="form-control" id="impTexto" rows="8" placeholder="1.- Pregunta...&#10;a) Opción&#10;b) Opción&#10;c) Opción&#10;d) Opción"></textarea>
+    <label for="impClave" class="form-label mt-3">Clave de respuestas</label>
+    <input class="form-control" id="impClave" placeholder="1c 2b 3b 4c 5b ...">
+    <div class="d-flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-secondary" onclick="descargarPlantillaExamen()">⬇ Descargar plantilla (.json)</button>
+    <button class="btn btn-secondary" onclick="analizarExamen()">Vista previa</button>
+    <button class="btn btn-primary" id="btnImportar" onclick="guardarImportacion()" disabled>Guardar en el curso</button>
+    </div>
+    <div id="impVista"></div>
+    </div>
+  </div>
+  </div>
+
+  <!-- Reporte en pantalla -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+    <h2 class="h4">Reporte en pantalla</h2>
+    <div class="row g-3">
+      <div class="col-12 col-md-6"><label for="fCurso" class="form-label">Curso</label><select class="form-select" id="fCurso" onchange="reporte()"></select></div>
+      <div class="col-12 col-md-6"><label for="fParalelo" class="form-label">Paralelo</label><select class="form-select" id="fParalelo" onchange="reporte()"></select></div>
+    </div>
+    <p class="small text-secondary mt-3 mb-0" id="resumen"></p>
+    </div>
+  </div>
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6"><div class="card shadow-sm h-100"><div class="card-body"><h3 class="h5">Aciertos vs. desaciertos</h3><canvas id="gTotal"></canvas></div></div></div>
+    <div class="col-12 col-lg-6"><div class="card shadow-sm h-100"><div class="card-body"><h3 class="h5">Por curso y paralelo</h3><canvas id="gCursos"></canvas></div></div></div>
+  </div>
+  <div class="card shadow-sm mb-3"><div class="card-body"><h3 class="h5">Aciertos y desaciertos por pregunta</h3><canvas id="gPreguntas"></canvas></div></div>
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+    <h3 class="h5">Resultados</h3>
+    <div class="table-responsive">
+    <table class="table table-bordered table-striped table-hover align-middle">
+      <thead><tr><th>Apellidos y nombres</th><th>Curso</th><th>Área</th><th>Par.</th><th>Aciertos</th><th>Desaciertos</th><th>Nota</th><th>Fecha</th><th>Examen</th></tr></thead>
+      <tbody id="tabla"></tbody>
+    </table>
+    </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+</main>
+
+<!-- Librerías (Firebase, gráficos y PDF) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<!-- Lógica de la aplicación -->
+<script src="app.js"></script>
+</body>
+</html>

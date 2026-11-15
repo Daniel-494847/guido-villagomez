@@ -1,0 +1,516 @@
+{
+ "cursoId": "2do-de-secundaria",
+ "titulo": "Evaluación final de Ciencias Sociales",
+ "preguntas": [
+  {
+   "p": "La definición más adecuada a la C.P.E. es:",
+   "o": [
+    "Es el conjunto de normas y reyes que regulan la vida del Estado y la sociedad",
+    "Es el conjunto de normas y leyes que regulan la vida de las personas y sus pensamientos",
+    "Es el conjunto de normas y leyes que regulan la vida del Estado y la sociedad",
+    "Es el conjunto de normas morales que regulan la vida de las personas y sus emociones."
+   ],
+   "c": 2
+  },
+  {
+   "p": "Fue la ocupación del territorio americano por países de Europa. Iniciado con la llegada de Colon, en 1492 que llegaron en busca de riquezas para y así expandir sus dominios donde se encontraron con pueblos originarios y civilizaciones que tenían una organización propia, la cual los españoles destruyeron y transformaron. ESTE CONCEPTO ES ADECUADO A:",
+   "o": [
+    "Administración colonial",
+    "Ocupación colonial",
+    "Invasión colonial",
+    "Administración pre colonial"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Para la administración de América, los colonizadores crearon verdaderos sistemas organización política, cuyas instituciones se encontraban en la propia España",
+   "o": [
+    "Real y Supremo Consejo de América y Casa de contrastación",
+    "Real y Supremo Consejo de Indias y Casa de contratación",
+    "Real y Extremo Consejo de Indias y Casa de contratación",
+    "Real y Supremo de Consejo de Indias y Casa de concentración"
+   ],
+   "c": 1
+  },
+  {
+   "p": "El orden correcto de las clases sociales establecidas durante la colonia fueron:",
+   "o": [
+    "Españoles, Mestizos, Criollos, Indígenas, Negros, Mulatos y Zambos",
+    "Españoles, Criollos, Indígenas, Negros, Indígenas,Mulatos y Zambos",
+    "Españoles, Criollos, Negros, Mulatos, Zambos Mestizos e Indígenas,",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Según Galeano, fue una verdadera máquina de triturar indios, un verdadero sistema de explotación que consistía en el trabajo forzado a perpetuidad, en las distintas minas, como Huancavelica, Zacatecas México, y Potosí",
+   "o": [
+    "La encomienda",
+    "La mita",
+    "La encomienda y los obrajes",
+    "Todos"
+   ],
+   "c": 1
+  },
+  {
+   "p": "La segunda parte de la C.P.E. está estructurado de la siguiente manera:",
+   "o": [
+    "Órgano Ejecucional, Órgano Legislativo, Órgano Juridico, Órgano Electoral",
+    "Poder Ejecutivo, Poder Legislativo, Poder Judicial, Poder Electoral",
+    "Órgano Ejecutivo, Poder Legislativo, Órgano Judicial, Poder Electoral",
+    "Órgano Ejecutivo, Órgano Legislativo, Órgano Judicial, Órgano Electoral"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Es el primer deber de todo boliviano según el Art 108 de la C.P.E.",
+   "o": [
+    "Cumplir la Constitución y las leyes",
+    "Cumplir las leyes y conocer",
+    "Conocer y hacer cumplir la Constitución y las leyes",
+    "Conocer, cumplir y hacer cumplir la Constitución y las leyes"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Según la pirámide de Kelsen la C.P.E. se encuentra:",
+   "o": [
+    "En el sub legal de bajo los acuerdos y tratados internacionales",
+    "En el mismo nivel y la jerarquía que las leyes ordinarias",
+    "Por encima de toda ley, solamente debajo de los derechos humanos",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Fue la instancia legal donde los indígenas originarios campesinos, fabriles mineros, cooperativistas, maestros, transportistas, trabajadores petroleros, sectores de la clase media, sectores de izquierda, derecha, y otros modificaron la C.P.E",
+   "o": [
+    "Magna asamblea deliberativa",
+    "Asamblea constituyente",
+    "Magna asamblea de los derechos humanos",
+    "Inciso b y c"
+   ],
+   "c": 1
+  },
+  {
+   "p": "El Estado para su forma de gobierno adopta la forma democrática, la misma que está estructurada de la siguiente manera",
+   "o": [
+    "Democracia directa y participativa, Democracia representativa y Democracia comunitaria",
+    "Democracia participativa, Democracia representativa y Democracia originaria",
+    "Democracia intercultural, Democracia representativa y Democracia originaria",
+    "Democracia participativa, Democracia autóctona y Democracia comunitaria"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Son elementos del Estado:",
+   "o": [
+    "Gobierno, población",
+    "Soberanía, territorio",
+    "Ninguno",
+    "Todos"
+   ],
+   "c": 3
+  },
+  {
+   "p": "“Son nuestros valores, creencias y normas de conducta que orientan nuestras decisiones y guían nuestro camino” Este concepto corresponde a:",
+   "o": [
+    "Los valores y caminos de paz",
+    "Principios y valores",
+    "Principios y valores regionales",
+    "Los valores y principios del país"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Los siguientes, son principios y valores de la cultura inca",
+   "o": [
+    "Sumaq Qamaña, Ama suwa, ama llulla",
+    "Ama suwa, ama llulla, ama qhilla",
+    "Ama llulla, ama qhilla, Capac Ñan",
+    "Capac Ñan, Sumaq Qamaña, Nandereko"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Estas culturas son parte del Estado Plurinacional.",
+   "o": [
+    "Yuracare, Guaraní, Mojeño, Maya, Atapasgo",
+    "Yuracare, Guaraní, Mojeño, Chiman, Tapiete",
+    "Yuracare, Trinitario tarijeño, Mojeño, Chiman, Tapiete",
+    "Yuracare, Trinitario, Mojeño, Baure cruceño, Tapiete"
+   ],
+   "c": 1
+  },
+  {
+   "p": "“Marcharon para exigir el reconocimiento del estado boliviano, no solo de su existencia, sino el reconocimiento a sus derechos, costumbres y el respeto a su territorio”. Este hecho histórico se refiere a:",
+   "o": [
+    "La marcha por la vida y las costumbres y la dignidad de 2014",
+    "La marcha por la patria, el territorio y la dignidad de 1990",
+    "La marcha por la patria el territorio y la digitación de 1990",
+    "La marcha por la vida el territorio y la dignidad de 1990"
+   ],
+   "c": 3
+  },
+  {
+   "p": "“Bolivia se constituye en un Estado Unitario Social de Derecho Plurinacional Comunitario, libre, independiente, soberano, democrático, intercultural, descentralizado y con autonomías” este fragmento de texto corresponde a:",
+   "o": [
+    "Artículo 108 de la C.P.E.",
+    "Artículo 11 de la C.P.E.",
+    "Artículo 1 de la C.P.E.",
+    "Todos"
+   ],
+   "c": 2
+  },
+  {
+   "p": "La base de su la organización es la familia nuclear,( unión de familias que comparten una línea de sangre común) y la unión de varias familias nucleares forman una tenta y varias tentas forman un Tenta Guasu. Esta afirmación corresponde a:",
+   "o": [
+    "Organización social de la cultura guaraní",
+    "Organización económica de la cultura guaraní",
+    "Organización económica de la cultura quechua",
+    "Organización social de la cultura quechua"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Se resistieron a la fuerza del gobierno y los hacendados incluso llegando a grandes enfrentamientos como la Masacre de Kuruyuqui de 1892 dirigida por:",
+   "o": [
+    "Apiaguaiki Tupa y sus valientes guerreros aimaras",
+    "Apiaguaiki Tupa y sus valientes guadianes de la galaxia",
+    "Apiaguaiki Tupa y sus valientes patrulleros del oriente",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Actualmente el pueblo guaraní habita los siguientes departamentos y provincias.",
+   "o": [
+    "Chuquisaca, (provincias Luis Calvo y Hernando Siles) Tarija (Gran Chaco y O’Connor) y Santa Cruz",
+    "Santa Cruz provincia Padcaya, Andrés Santa Cruz, Colonia Linares",
+    "Chuquisaca, (provincias Luis Arce Catacora y Hernando Siles) Santa Cruz provincia Cordillera, Warnes, Ichilo y Tarija ( provincia Mendez, O’Connor y Bermejo)",
+    "Todos"
+   ],
+   "c": 0
+  },
+  {
+   "p": "La siguiente relación de conceptos es la correcta",
+   "o": [
+    "Nandereco = Modo de ser guaraní",
+    "Ivi Maraëi = Busqueda de la tierra sin mal",
+    "Ninguno",
+    "Incisos Ay B"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Es la máxima instancia de decisión del pueblo guaraní, donde se debaten temas de salud, educación, reivindicaciones sociales y asuntos relacionados a su territorio:",
+   "o": [
+    "Gran asamblea del pueblo grande y las tierras comunitarias A.P.G.",
+    "Gran asamblea guarani y las tierras comunitarias del occidente A.P.G.O.",
+    "Gran asamblea del pueblo grande del occidente A.P.G.O.",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Fueron sociedades que hicieron un uso eficiente del agua para su progreso como civilización. Esta afirmación corresponde a:",
+   "o": [
+    "Las culturas hidráulicas amazónicas.",
+    "Las culturas del agua y las tierras del oriente",
+    "Todos",
+    "Ninguno"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Fueron construcciones pre incaicos consistentes en las elevaciones artificiales de tierra, que servían para la agricultura y sus canales para la navegación a pequeña escala.",
+   "o": [
+    "Terrazas, acueductos romanos y camellones",
+    "Terrazas, andenes y camellones",
+    "Terrazas, lomas artificiales y camellones",
+    "Terrazas, andenes artificiales y puentes alimenticios"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Fueron determinadas áreas geográficas del oriente boliviano destinadas a la evangelización y protección de los indígenas durante la colonia donde además se les enseñaba puntura, escultura y otros oficios.",
+   "o": [
+    "Misiones y reducciones jesuíticas",
+    "Misiones y reducciones de la república de Bolivia",
+    "Misiones y traducciones jesuíticas",
+    "Misiones y tradiciones jesuíticas ñdel Oriente boliviano."
+   ],
+   "c": 0
+  },
+  {
+   "p": "Del aporte a la humanidad por parte de los incas ¿Cuál consideras el más importante?",
+   "o": [
+    "La construcción, la astronomía y las matemáticas",
+    "La medicina, los andenes y las matemáticas",
+    "La medicina, la astronomía y las matemáticas",
+    "La medicina, la astronomía y las chasquis"
+   ],
+   "c": 2
+  },
+  {
+   "p": "¿Cómo podemos conservar las costumbres y tradiciones de nuestros ancestros?",
+   "o": [
+    "Practicando nuestras costumbres y tradiciones",
+    "Difundiendo nuestra identidad al mundo",
+    "Valorando nuestra identidad",
+    "Todos"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Por esta razón la cultura inca es considerada una verdadera civilización",
+   "o": [
+    "Por su capacidad de organización y formar un verdadero imperio",
+    "Por sus aportes a la humanidad",
+    "Por sintetizar los conocimientos artísticos, científicos y tecnológicos de sus antecesores y mejorarlos",
+    "Todos"
+   ],
+   "c": 3
+  },
+  {
+   "p": "El gran imperio de las 4 regiones abarcaba todas estas regiones, menos una región",
+   "o": [
+    "Perú, Bolivia, Chile, Ecuador parte de Colombia y Argentina",
+    "Perú, Bolivia, Chile, Guatemala, Ecuador Parte de Colombia y Argentina",
+    "Todos",
+    "Ninguno"
+   ],
+   "c": 1
+  },
+  {
+   "p": "La organización política incaica fue una de la más avanzadas de su tiempo y estas eran sus características",
+   "o": [
+    "Monárquica absoluta y teocrática",
+    "Monárquica absoluta, teocrática e imperialista",
+    "Monárquica absoluta e imperialista",
+    "Ninguno"
+   ],
+   "c": 0
+  },
+  {
+   "p": "El orden correcto de la organización de la cultura inca es el siguiente.",
+   "o": [
+    "Nobleza de sangre, nobleza de privilegio, Hatunrunas, Mitimaes y Yanaconas",
+    "Nobleza de sangre, nobleza de privilegio, Hatunrunas, Mitimaes y Yanaconas",
+    "Inca supremo, nobleza de sangre, nobleza de privilegio, Hatunrunas, Mitimaes y Yanaconas",
+    "Hatunrunas, Mitimaes, Yanaconas, nobleza de sangre, nobleza de privilegio"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Era considerado como una función social de la que no podía eximirse ningún individuo; era obligatorio para todas las personas del imperio; pero no era igual para todos sino que se asignaba a cada individuo según sus capacidades. «A nadie se le exigía más de lo que podía dar” Esta afirmación corresponde al:",
+   "o": [
+    "Sistema de trabajo y reciprocidad mejorada",
+    "Sistema de trabajo",
+    "Sistema de trabajo social comunitario deductivo",
+    "Incisos A y B"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Es la deshidratación de la papa y la carne, que se realiza por medio del congelamiento y secado al sol y posterior horneado a fuego intenso para luego ser almacenado.",
+   "o": [
+    "El charque y el chuño",
+    "El charque el chuño y la yuca",
+    "El charque y el chuño y el camote",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Fueron los principios de vida de la Civilización incaica, por el cual guiaron sus acciones",
+   "o": [
+    "Ama llulla, Ama Suwa, Ama Qhilla",
+    "Ama llulla, Ama Suwa, no seas ladron",
+    "Ama Suwa, Ama llulla no seas mentiroso",
+    "Ama Qhilla no seas flojo, Ama llulla"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Los siguientes actividades componen la organización económica de la cultura incaica.",
+   "o": [
+    "La construcción , ganadería, pesca, comercio y trabajo",
+    "La construcción, ganadería, pesca, comercio y trabajo",
+    "La agricultura, ganadería, pesca, comercio y trabajo",
+    "La agricultura, ganadería, pesca, comercio y la cestería"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Los siguientes son considerados fuentes monumentales de la historia",
+   "o": [
+    "Megalitos, Lanzas, Cerámica, Menhires, Castillos y Túmulos",
+    "Megalitos, Dólmenes, Menhires, Castillos, leyendas y Túmulos",
+    "Megalitos, Dólmenes, Menhires, Castillos, Fortalezas y Túmulos",
+    "Megalitos, Dólmenes, Menhires, Documentos,Fortalezas y Túmulos"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Es toda fuente histórica desde el arte rupestre hasta la invención de la escritura silábica y fonética.",
+   "o": [
+    "Fuentes documentales y orales",
+    "Fuentes documentales y materiales",
+    "Fuentes documentales escritas",
+    "Fuentes documentales materiales"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Fue el primer instrumento de adoración del hombre y descubierto por:",
+   "o": [
+    "Fuego y homo- Ergáster",
+    "El sol y homo- Sapiens",
+    "La tierra y el sol – Sapiens",
+    "Ninguno"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Son características principales de los homínidos:",
+   "o": [
+    "Bipedestación, desarrollo dental y colonización del mundo",
+    "Bipedestación, desarrollo craneal y colonización del mundo",
+    "Bipedestación, desarrollo de la inteligencia y habilidad manual",
+    "Bipedestación, desarrollo emocional y habilidad manual"
+   ],
+   "c": 1
+  },
+  {
+   "p": "El descubrimiento de la agricultura, domesticación de los animales y la división del trabajo se da:",
+   "o": [
+    "En el periodo del paleolítico cuaternario",
+    "En el periodo del neolítico",
+    "En el periodo del neolítico tardío",
+    "En el periodo del neolítico metálico apostólico"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Es la ciencia auxiliar de la historia que se encarga de estudiar los restos materiales dejados por la humanidad a lo largo del tiempo.",
+   "o": [
+    "Arqueología",
+    "Sociología",
+    "Antropología",
+    "Numismática"
+   ],
+   "c": 0
+  },
+  {
+   "p": "Ocurrió en Chuquisaca, donde los doctores y la población aprovechando la inestabilidad del gobierno español salieron en protesta armada en busca de la liberación de Dr. Jaime de Zudáñez quien había sido apresado por órdenes del presidente de la Audiencia Ramón García y Pizarro lo que culmino en un hecho conocido en la historia como:",
+   "o": [
+    "La revolución del 16 de Julio de 1809",
+    "La revolución del 25 de Julio de 1810",
+    "La revolución del 25 de Mayo de 1809",
+    "La revolución del 26 de Mayo de 1810"
+   ],
+   "c": 2
+  },
+  {
+   "p": "La invasión de Napoleón Bonaparte, la revolución de EEUU, la revolución francesa y la ilustración, se constituyen en:",
+   "o": [
+    "Causas internas para el primer grito libertario de América",
+    "Causas externas para el primer grito libertario de América",
+    "Causas externas para el primer grito libertario de América de 1810",
+    "Causas internas para el primer grito libertario de América de 1825"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Fue un general criollo arequipeño enviado desde España por la infanta Carlota Joaquina de Borbón con una doble misión, por un lado con las pretensiones de la junta de Sevilla y por el otro con las aspiraciones de la monarquía de Portugal.",
+   "o": [
+    "Fernando VII",
+    "José Manuel de Goyeneche",
+    "José Fernando de Goyeneche",
+    "Ramón García y Pizarro"
+   ],
+   "c": 1
+  },
+  {
+   "p": "Se constituyen en consecuencias de la revolución del 25 de mayo:",
+   "o": [
+    "La Rev. del 06 de agosto de 1825, levantamiento en otras regiones del Alto Perú, la Rev. de las provincias unidas del rio de la plata de 1810 y la aparición de los ejércitos sanadores argentinos",
+    "La Rev. del de 16 de julio de 1809, levantamiento en otras regiones del Bolivia, la Rev. de las provincias unidas del rio Bermejo de 1810 y la aparición de los ejércitos auxiliares argentinos",
+    "La Rev. del de 16 de julio de 1809, levantamiento en otras regiones del Alto Perú, la Rev. de las provincias unidas del rio de la plata de 1810 y la aparición de los ejércitos auxiliares argentinos",
+    "La Rev. del de 16 de julio de 1809, levantamiento en otras regiones del Alto de la Alianza, la Rev. de las provincias unidas del rio Bermejo de 2010 y la aparición de los ejércitos auxiliares argentinos"
+   ],
+   "c": 2
+  },
+  {
+   "p": "“Ocurrió la madrugada del 24 de junio de 1967, en el que fuerzas militares, policiales intervinieron violentamente los centros mineros de Siglo XX, Catavi y Llallagua buscando sofocar las luchas sociales, laborales y sindicales de los trabajadores mineros. Este hecho corresponde a:",
+   "o": [
+    "La masacre minera de Potosí de 1697",
+    "La masacre minera de San Juan",
+    "La masacre minera de San Santiago",
+    "Todos"
+   ],
+   "c": 1
+  },
+  {
+   "p": "“Es la organización democrática de los trabajadores, creada libremente para defender sus derechos, mejorar las condiciones de vida y luchar por las reivindicaciones salariales en la fábrica, el taller, la empresa, el centro minero, la comunidad campesina y en otros sectores sociales” Esta concepto se aplica al siguiente termino",
+   "o": [
+    "Proletariado",
+    "Fuero sindical",
+    "Sindicalismo",
+    "Todos"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Dos de estos personajes fueron víctimas de la masacre de San Juan",
+   "o": [
+    "Lorenzo García (Maisman), Cesar Lora y Domitila Chungara",
+    "Rosendo García (Maisman), Guillermo Lora y Dominga Chungara",
+    "Rosendo García (Maisman), Cesar Lora y Domitila Chungara",
+    "Lorenzo García (Maisman), Pedro Lora y Dominga Lia Chungara"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Tomando en cuenta la división geográfica del imperio incaico, el Collasuyo se encontraba al:",
+   "o": [
+    "Al este",
+    "Al norte",
+    "Al sur",
+    "Al norte"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Fue un sistema de explotación colonial, que consistía en el trabajo forzado en las plataciones y la explotación de la tierra.",
+   "o": [
+    "La mita",
+    "Los obrajes",
+    "La encomienda",
+    "Los repartimientos"
+   ],
+   "c": 2
+  },
+  {
+   "p": "Según la CPE cuantos años es la gestión del defensor del pueblo",
+   "o": [
+    "4 años",
+    "5 años",
+    "3 años",
+    "Ninguno"
+   ],
+   "c": 3
+  },
+  {
+   "p": "Tiene por misión fundamental defender y conservar la independencia, seguridad y estabilidad del Estado; asegurar el imperio de la Constitución.",
+   "o": [
+    "Policía nacional",
+    "Fuerzas Armadas",
+    "Fuerzas Armadas y Policía nacional",
+    "Ninguno"
+   ],
+   "c": 1
+  }
+ ]
+}
