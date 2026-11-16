@@ -19,6 +19,7 @@ const firebaseConfig = {
   appId: "1:285865534897:web:8f47d828cbe8d258410990"
 };
 const PARALELOS = ["A", "B", "C"]; // Solo estos paralelos
+let paraleloCursosSeleccionado = "A";
 const CURSOS = [ // Solo Secundaria (cada curso aplica a todos sus paralelos A, B y C)
   "1ro de Secundaria", "2do de Secundaria", "3ro de Secundaria",
   "4to de Secundaria", "5to de Secundaria", "6to de Secundaria"
@@ -111,15 +112,6 @@ async function crearColecciones() {
   return faltan.length;
 }
 
-async function crearFaltantes() {
-  if (!exigirAdministrador()) return;
-  try {
-    const n = await crearColecciones();
-    alert(n ? `Se crearon ${n} cursos.` : "Todas las colecciones ya existen.");
-    cargarAdmin();
-  } catch (e) { alert("Error: " + e.message); }
-}
-
 // ---------- INICIO ----------
 if (MODO_ESTUDIANTE) $("tabAdm").hidden = true;
 
@@ -182,10 +174,10 @@ async function compartirEnlaceEstudiantes() {
 
 function actualizarVistaPersonal() {
   const autorizado = Boolean(usuarioPersonal && ["admin", "docente"].includes(rolPersonal));
+  $("btnCerrarSesion").classList.toggle("d-none", !autorizado);
   $("loginPersonal").classList.toggle("d-none", autorizado);
   $("contenidoPersonal").classList.toggle("d-none", !autorizado);
   $("herramientasAdmin").classList.toggle("d-none", !autorizado || rolPersonal !== "admin");
-  $("btnCrearFaltantes").classList.toggle("d-none", rolPersonal !== "admin");
   if (autorizado && !$("vistaAdm").classList.contains("d-none")) cargarAdmin();
 }
 
@@ -258,7 +250,7 @@ async function cerrarSesionPersonal() {
 /* =========================================================
    ESTUDIANTE
    ========================================================= */
-let evaluacion = null, estudiante = null, timer = null, enviando = false;
+let evaluacion = null, estudiante = null, timer = null, enviando = false, tiempoAgotado = false, finEvaluacion = null;
 let indicePregunta = 0;   // pregunta que se muestra en pantalla (estilo Quizizz)
 let borrador = [];        // respuestas guardadas del estudiante (índice de opción o -1)
 
@@ -267,13 +259,26 @@ let borrador = [];        // respuestas guardadas del estudiante (índice de opc
 const claveBorrador = () => "respuestas_" + (estudiante ? estudiante.id : "none");
 
 function guardarBorrador() {
-  try { localStorage.setItem(claveBorrador(), JSON.stringify(respuestasMarcadas())); } catch (e) { /* almacenamiento no disponible */ }
+  try {
+    localStorage.setItem(claveBorrador(), JSON.stringify({
+      respuestas: respuestasMarcadas(),
+      indicePregunta,
+      actualizado: new Date().toISOString()
+    }));
+  } catch (e) { /* almacenamiento no disponible */ }
 }
 
 function leerBorrador() {
   try {
     const v = JSON.parse(localStorage.getItem(claveBorrador()) || "null");
-    return Array.isArray(v) ? v : null;
+    if (Array.isArray(v)) return { respuestas: v, indicePregunta: 0, actualizado: 0 };
+    if (!v || !Array.isArray(v.respuestas)) return null;
+    const actualizado = Date.parse(v.actualizado || "");
+    return {
+      respuestas: v.respuestas,
+      indicePregunta: Number.isInteger(v.indicePregunta) ? v.indicePregunta : 0,
+      actualizado: Number.isFinite(actualizado) ? actualizado : 0
+    };
   } catch (e) { return null; }
 }
 
@@ -289,25 +294,28 @@ function pintarPreguntaActual() {
   const marcadaVal = borrador[i] ?? -1;
   $("contadorPregunta").textContent = `Pregunta ${i + 1} de ${total}`;
   $("preguntaActual").innerHTML = `
-    <div class="border rounded p-3 bg-light">
-      <p class="fw-semibold fs-5 mb-3">${i + 1}. ${esc(q.p)} ${borrador[i] >= 0 ? '<span class="badge text-bg-success ms-2">✔ Respondida</span>' : '<span class="badge text-bg-secondary ms-2">Sin responder</span>'}</p>
+    <div class="border rounded p-2 p-sm-3 bg-light">
+      <p class="fw-semibold fs-6 mb-2">${i + 1}. ${esc(q.p)} ${borrador[i] >= 0 ? '<span class="badge text-bg-success ms-2">✔ Respondida</span>' : '<span class="badge text-bg-secondary ms-2">Sin responder</span>'}</p>
       ${q.o.map((op, j) => `
-        <div class="form-check fs-5 py-2 border-bottom">
-          <input class="form-check-input" type="radio" id="p${i}o${j}" name="p${i}" value="${j}" ${j === marcadaVal ? "checked" : ""} onchange="preguntaRespondida(${i}, this.value)">
-          <label class="form-check-label" for="p${i}o${j}">${"ABCD"[j]}) ${esc(op)}</label>
+        <div class="form-check fs-6 py-2 border-bottom">
+          <input class="form-check-input" type="radio" id="p${i}o${j}" name="p${i}" value="${j}" ${j === marcadaVal ? "checked" : ""} ${tiempoAgotado ? "disabled" : ""} onchange="preguntaRespondida(${i}, this.value)">
+          <label class="form-check-label d-block" for="p${i}o${j}">${"ABCD"[j]}) ${esc(op)}</label>
         </div>`).join("")}
     </div>`;
   // Botones: Anterior se oculta en la primera, Siguiente cambia a Terminar en la última
-  $("btnAnterior").disabled = i === 0;
+  $("btnAnterior").disabled = tiempoAgotado || i === 0;
+  $("btnSiguiente").disabled = tiempoAgotado;
+  $("btnSaltar").disabled = tiempoAgotado;
   $("btnSiguiente").classList.toggle("d-none", i === total - 1);
   $("btnSaltar").classList.toggle("d-none", i === total - 1);
   $("barraProgreso").style.width = Math.round(((i + 1) / total) * 100) + "%";
+  $("barraProgreso").parentElement.setAttribute("aria-valuenow", Math.round(((i + 1) / total) * 100));
   pintarNavPreguntas();
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // Al marcar una opción, la respuesta queda guardada de inmediato
 async function preguntaRespondida(i, valor) {
+  if (tiempoAgotado) return;
   borrador[i] = Number(valor);
   guardarBorrador();                     // persiste en localStorage
   guardarBorradorEnFirestore();          // persiste en la base de datos
@@ -323,7 +331,9 @@ function guardarBorradorEnFirestore() {
     authUid: auth.currentUser ? auth.currentUser.uid : null,
     estudianteId: estudiante.id,
     cursoId: estudiante.cursoId,
+    paralelo: estudiante.paralelo,
     respuestas: [...borrador],
+    indicePregunta,
     actualizado: new Date().toISOString()
   };
   const ref = db.collection("respuestas").doc("borrador_" + estudiante.id);
@@ -334,17 +344,21 @@ function guardarBorradorEnFirestore() {
 }
 
 function preguntaMover(delta) {
+  if (tiempoAgotado) return;
   const total = evaluacion.preguntas.length;
   indicePregunta = Math.min(total - 1, Math.max(0, indicePregunta + delta));
+  guardarBorrador();
+  guardarBorradorEnFirestore();
   pintarPreguntaActual();
 }
 
 // Salta la pregunta sin responderla (avanza a la siguiente)
 function preguntaSaltar() {
+  if (tiempoAgotado) return;
   borrador[indicePregunta] = -1;   // desmarca cualquier opción elegida
+  if (indicePregunta < evaluacion.preguntas.length - 1) indicePregunta++;
   guardarBorrador();
   guardarBorradorEnFirestore();
-  if (indicePregunta < evaluacion.preguntas.length - 1) indicePregunta++;
   pintarPreguntaActual();
 }
 
@@ -353,12 +367,19 @@ function pintarNavPreguntas() {
   const respondidas = borrador.filter(m => m >= 0).length;
   $("contadorRespondidas").textContent = `✔ ${respondidas} de ${borrador.length} respondidas`;
   $("navPreguntas").innerHTML = borrador.map((m, i) => `
-    <button type="button" class="btn btn-sm ${m >= 0 ? "btn-success" : "btn-outline-secondary"} ${i === indicePregunta ? "fw-bold border-2" : ""}" onclick="irAPregunta(${i})" title="${m >= 0 ? "Respondida" : "Sin responder"}">
+    <button type="button" class="btn btn-sm ${m >= 0 ? "btn-success" : "btn-outline-secondary"} ${i === indicePregunta ? "fw-bold border-2" : ""}" onclick="irAPregunta(${i})" title="${m >= 0 ? "Respondida" : "Sin responder"}" ${tiempoAgotado ? "disabled" : ""}>
       ${i + 1} ${m >= 0 ? "✔" : ""}
     </button>`).join("");
 }
 
-function irAPregunta(i) { indicePregunta = i; pintarPreguntaActual(); }
+function irAPregunta(i) {
+  if (tiempoAgotado) return;
+  indicePregunta = i;
+  guardarBorrador();
+  guardarBorradorEnFirestore();
+  bootstrap.Collapse.getOrCreateInstance($("panelPreguntas"), { toggle: false }).hide();
+  pintarPreguntaActual();
+}
 
 async function iniciar() {
   const nombres = $("nombres").value.trim(), apellidos = $("apellidos").value.trim();
@@ -366,6 +387,7 @@ async function iniciar() {
 
   $("btnIniciar").disabled = true;
   try {
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     let sesion = auth.currentUser;
     if (sesion && !sesion.isAnonymous) throw new Error("Cierra la sesión del personal antes de iniciar una evaluación.");
     if (!sesion) sesion = (await auth.signInAnonymously()).user;
@@ -392,7 +414,7 @@ async function iniciar() {
       reg = await ref.get();
     } catch (e) {
       if (e.code === "permission-denied") {
-        return alert("Ya respondiste esta evaluación o ya existe un intento iniciado. No puedes volver a iniciarla.");
+        return alert("No se pudo acceder a este intento. Puede que ya lo hayas finalizado; si no, vuelve desde el mismo dispositivo y navegador, con el mismo curso y los mismos nombres.");
       }
       throw e;
     }
@@ -421,23 +443,44 @@ async function iniciar() {
       new Set(ordenGuardado).size === preguntasBase.length &&
       ordenGuardado.every(indice => Number.isInteger(indice) && indice >= 0 && indice < preguntasBase.length);
     const ordenPreguntas = ordenValido ? ordenGuardado : crearOrdenPreguntas(preguntasBase.length);
+    estudiante.preguntasOrden = ordenPreguntas;
     const preguntasAsignadas = ordenPreguntas.map(indice => preguntasBase[indice]);
     // En memoria del estudiante solo entran preguntas SIN clave (campo "c")
     evaluacion = { ...c, titulo: (prueba && prueba.titulo) || c.titulo, preguntas: preguntasAsignadas.map(q => ({ p: q.p, o: [...q.o] })) };
-    // Recupera las respuestas ya guardadas (localStorage y Firestore)
-    borrador = leerBorrador();
-    if (!borrador || borrador.length !== evaluacion.preguntas.length) borrador = Array(evaluacion.preguntas.length).fill(-1);
-    try {
-      const nube = await db.collection("respuestas").doc("borrador_" + id).get();
-      if (nube.exists && Array.isArray(nube.data().respuestas) && nube.data().respuestas.length === borrador.length) {
-        const nubeDatos = nube.data().respuestas;
-        const local = borrador;
-        // Gana el origen con más respuestas respondidas
-        const cant = arr => arr.filter(m => m >= 0).length;
-        borrador = cant(nubeDatos) > cant(local) ? nubeDatos : local;
-      }
-    } catch (e) { /* si no se puede leer la nube, se usa lo local */ }
-    guardarBorradorEnFirestore();
+    const totalPreguntas = evaluacion.preguntas.length;
+    const borradorLocal = leerBorrador();
+    const localValido = reg.exists && borradorLocal &&
+      borradorLocal.respuestas.length === totalPreguntas;
+    borrador = localValido
+      ? [...borradorLocal.respuestas]
+      : Array(totalPreguntas).fill(-1);
+    let indiceGuardado = localValido ? borradorLocal.indicePregunta : 0;
+
+    if (reg.exists) {
+      try {
+        const nube = await db.collection("respuestas").doc("borrador_" + id).get();
+        const datosNube = nube.exists ? nube.data() : null;
+        if (datosNube && Array.isArray(datosNube.respuestas) && datosNube.respuestas.length === totalPreguntas) {
+          const cant = arr => arr.filter(m => m >= 0).length;
+          const actualizadoNube = Date.parse(datosNube.actualizado || "");
+          const nubeMasReciente = !localValido ||
+            cant(datosNube.respuestas) > cant(borrador) ||
+            (cant(datosNube.respuestas) === cant(borrador) &&
+              Number.isFinite(actualizadoNube) && actualizadoNube > borradorLocal.actualizado);
+          if (nubeMasReciente) {
+            borrador = [...datosNube.respuestas];
+            indiceGuardado = Number.isInteger(datosNube.indicePregunta) ? datosNube.indicePregunta : 0;
+          }
+        }
+      } catch (e) { /* si no se puede leer la nube, se usa lo local */ }
+    } else {
+      borrarBorrador();
+    }
+
+    indicePregunta = Number.isInteger(indiceGuardado) && indiceGuardado >= 0 && indiceGuardado < totalPreguntas
+      ? indiceGuardado
+      : 0;
+
     let inicio = Date.now();
     if (reg.exists && reg.data().inicioMs) inicio = reg.data().inicioMs;
     else {
@@ -456,20 +499,24 @@ async function iniciar() {
       }
     }
 
+    guardarBorrador();
+    guardarBorradorEnFirestore();
+
     const restante = c.minutos * 60 - Math.floor((Date.now() - inicio) / 1000);
-    if (restante <= 0) {
-      alert("Tu tiempo ya terminó. Se enviarán automáticamente tus respuestas guardadas.");
-      return guardarResultado(respuestasMarcadas());
-    }
+    tiempoAgotado = restante <= 0;
 
     // Muestra la prueba asignada al curso, una pregunta a la vez (estilo Quizizz)
     $("tituloEval").textContent = c.titulo;
     $("datosEst").textContent = `${apellidos} ${nombres} · ${c.nombre} "${paralelo}" · Área: ${c.area}`;
-    indicePregunta = 0;
     pintarPreguntaActual();
     pintarNavPreguntas();
     $("paso1").classList.add("d-none");
     $("paso2").classList.remove("d-none");
+    if (tiempoAgotado) {
+      $("reloj").textContent = "⏱ 00:00";
+      enviando = true;
+      return guardarResultado(respuestasMarcadas());
+    }
     arrancarReloj(restante);
   } catch (e) {
     alert("Error: " + e.message);
@@ -481,7 +528,8 @@ async function iniciar() {
 // Cuenta regresiva; al llegar a 0 envía automáticamente
 function arrancarReloj(segundos) {
   clearInterval(timer);
-  const fin = Date.now() + segundos * 1000;
+  finEvaluacion = Date.now() + segundos * 1000;
+  const fin = finEvaluacion;
   const tic = () => {
     const r = Math.max(0, Math.round((fin - Date.now()) / 1000));
     $("reloj").textContent = "⏱ " + String(Math.floor(r / 60)).padStart(2, "0") + ":" + String(r % 60).padStart(2, "0");
@@ -489,7 +537,12 @@ function arrancarReloj(segundos) {
     $("reloj").classList.toggle("text-danger", r <= 60);
     $("reloj").classList.toggle("border-primary", r > 60);
     $("reloj").classList.toggle("text-primary", r > 60);
-    if (r <= 0) { clearInterval(timer); enviar(true); }
+    if (r <= 0) {
+      clearInterval(timer);
+      tiempoAgotado = true;
+      pintarPreguntaActual();
+      enviar(true);
+    }
   };
   tic();
   timer = setInterval(tic, 500);
@@ -499,9 +552,12 @@ let modalResumen = null; // instancia de Bootstrap del modal de resumen
 
 async function enviar(auto) {
   if (enviando) return;
-  if (auto) {
+  $("estadoEnvio").classList.add("d-none");
+  $("estadoEnvio").classList.remove("d-flex");
+  if (auto || tiempoAgotado) {
     // Tiempo agotado: se envía sin preguntar
     enviando = true;
+    tiempoAgotado = true;
     clearInterval(timer);
     return guardarResultado(respuestasMarcadas());
   }
@@ -511,9 +567,14 @@ async function enviar(auto) {
   const respondidas = marcadas.length - sinResponder;
   $("cuerpoResumen").innerHTML = `
     <p class="fs-5 fw-semibold">Has respondido <span class="text-success">${respondidas}</span> de <b>${marcadas.length}</b> preguntas.</p>
-    ${sinResponder ? `<div class="alert alert-warning py-2">⚠ Tienes <b>${sinResponder}</b> pregunta(s) sin responder: quedarán como incorrectas.<br>${marcadas.map((m, i) => m < 0 ? i + 1 : null).filter(Boolean).join(", ")}</div>`
-      : `<div class="alert alert-success py-2">✔ Respondiste todas las preguntas.</div>`}
+    ${sinResponder
+      ? `<div class="alert alert-warning py-2">⚠ Tienes <b>${sinResponder}</b> pregunta(s) sin responder (${marcadas.map((m, i) => m < 0 ? i + 1 : null).filter(Boolean).join(", ")}). ¿Estás seguro de enviar la evaluación así? Quedarán como incorrectas.</div>`
+      : `<div class="alert alert-success py-2">✔ Respondiste todas las preguntas. ¿Estás seguro de finalizar y enviar?</div>`}
     <p class="mb-0">Una vez enviada <b>no podrás modificar tus respuestas</b>.</p>`;
+  const botonConfirmar = $("btnConfirmarEnvio");
+  botonConfirmar.textContent = sinResponder ? "Sí, enviar sin responder" : "Sí, enviar evaluación";
+  botonConfirmar.classList.toggle("btn-danger", sinResponder > 0);
+  botonConfirmar.classList.toggle("btn-success", sinResponder === 0);
   modalResumen = modalResumen || new bootstrap.Modal($("modalResumen"));
   modalResumen.show();
 }
@@ -527,6 +588,15 @@ async function confirmarEnvio() {
   await guardarResultado(respuestasMarcadas());
 }
 
+async function reintentarEnvio() {
+  if (enviando) return;
+  enviando = true;
+  $("estadoEnvio").classList.add("d-none");
+  $("estadoEnvio").classList.remove("d-flex");
+  clearInterval(timer);
+  await guardarResultado(respuestasMarcadas());
+}
+
 async function guardarResultado(marcadas) {
   const qs = evaluacion.preguntas;
   // El estudiante NO conoce las claves: se envían solo sus respuestas marcadas.
@@ -536,18 +606,46 @@ async function guardarResultado(marcadas) {
     aciertos: 0, desaciertos: qs.length, total: qs.length,
     nota: 0,
     preguntas: qs.map(q => ({ p: q.p, o: [...q.o] })), // sin campo c
-    respuestas: marcadas, correctas: qs.map(() => false), fecha: new Date().toISOString()
+    preguntasOrden: estudiante.preguntasOrden,
+    respuestas: marcadas, correctas: [], fecha: new Date().toISOString()
   };
-  pintarResultado(resultado, evaluacion, false);
+  try {
+    await db.collection("resultados").doc(estudiante.id).set(resultado);
+  } catch (e) {
+    if (e.code === "permission-denied") {
+      try {
+        await db.collection("estudiantes").doc(estudiante.id).get();
+      } catch (verificacion) {
+        if (verificacion.code === "permission-denied") {
+          borrarBorrador();
+          try { localStorage.setItem("eval_rindio_" + estudiante.id, "1"); } catch (error) { }
+          pintarResultado(resultado, evaluacion, true);
+          $("estadoGuardado").textContent = "La evaluación ya estaba registrada.";
+          return;
+        }
+      }
+    }
+
+    enviando = false;
+    if (!tiempoAgotado && finEvaluacion !== null) {
+      const restante = Math.ceil((finEvaluacion - Date.now()) / 1000);
+      if (restante > 0) arrancarReloj(restante);
+      else {
+        tiempoAgotado = true;
+        pintarPreguntaActual();
+      }
+    }
+    $("mensajeEnvio").textContent = "No se pudo guardar la evaluación. Tus respuestas se conservaron; revisa la conexión y vuelve a intentar enviarla. " + e.message;
+    $("estadoEnvio").classList.remove("d-none");
+    $("estadoEnvio").classList.add("d-flex");
+    return;
+  }
+
   borrarBorrador();
   try { localStorage.setItem("eval_rindio_" + estudiante.id, "1"); } catch (e) { }
-  try {
-    await db.collection("respuestas").doc("borrador_" + estudiante.id).delete().catch(() => { });
-    await db.collection("resultados").doc(estudiante.id).set(resultado);
-    $("estadoGuardado").textContent = "✅ Resultado guardado.";
-  } catch (e) {
-    $("estadoGuardado").textContent = "⚠️ No se pudo guardar: " + e.message;
-  }
+  await db.collection("respuestas").doc("borrador_" + estudiante.id).delete().catch(() => { });
+  pintarResultado(resultado, evaluacion, false);
+  $("estadoGuardado").textContent = "✅ Resultado guardado.";
 }
 
 function pintarResultado(r, c, yaRindio) {
@@ -555,7 +653,7 @@ function pintarResultado(r, c, yaRindio) {
   // solo se confirma que sus respuestas fueron enviadas.
   $("notaFinal").textContent = "Enviada ✓";
   $("nAciertos").textContent = "✓ Respuestas enviadas: " + r.respuestas.filter(m => m >= 0).length + " de " + r.total;
-  $("nDesaciertos").textContent = "Tu nota aparecerá en el reporte del docente.";
+  $("nDesaciertos").textContent = "Tu nota aparecerá en el reporte del administrador.";
   $("estadoGuardado").textContent = yaRindio ? "Evaluación ya registrada." : "Guardando…";
   $("revision").innerHTML = c.preguntas.map((q, i) => {
     const m = r.respuestas[i];
@@ -568,7 +666,12 @@ function pintarResultado(r, c, yaRindio) {
 }
 
 function reiniciar() {
+  clearInterval(timer);
   enviando = false;
+  tiempoAgotado = false;
+  finEvaluacion = null;
+  $("estadoEnvio").classList.add("d-none");
+  $("estadoEnvio").classList.remove("d-flex");
   $("nombres").value = ""; $("apellidos").value = "";
   $("paso3").classList.add("d-none");
   $("paso1").classList.remove("d-none");
@@ -578,11 +681,10 @@ function reiniciar() {
    ADMINISTRADOR
    ========================================================= */
 async function leerResultados() {
-  const s = await db.collection("resultados").get();
-  return s.docs.map(d => ({ ...d.data(), id: d.id }));
+  const snapshot = await db.collection("resultados").get();
+  return snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 const porCurso = id => RESULTADOS.filter(r => r.cursoId === id);
-const idsConcluidos = () => CURSOS.map(cursoId).filter(id => CACHE[id] && !CACHE[id].activo);
 const collatorNomina = new Intl.Collator("es", { sensitivity: "base" });
 function compararNomina(a, b) {
   return collatorNomina.compare(a.apellidos || "", b.apellidos || "") ||
@@ -609,6 +711,8 @@ async function cargarAdmin() {
     RESULTADOS = await leerResultados();
     pintarCursos();
     reporte();
+    $("errorGlobal").classList.add("d-none");
+    $("errorGlobal").textContent = "";
   } catch (e) {
     avisarError(`Firestore rechazó el paso "${etapa}" en ${firebaseConfig.projectId}: ${e.message} Revisa que las reglas estén desplegadas en este proyecto y que tu documento usuarios/{UID} tenga rol "admin" o "docente".`);
   }
@@ -629,100 +733,150 @@ async function cargarCantidadPreguntas() {
   }));
 }
 
-// El personal (con acceso a las claves en "examenes") recalcula nota/aciertos/desaciertos
-// de todo resultado que aún esté sin calificar (nota 0 y desaciertos = total).
+function preguntasEnOrdenDeResultado(preguntas, resultado) {
+  if (!Array.isArray(preguntas) || !preguntas.length) return null;
+  const orden = resultado.preguntasOrden;
+  if (Array.isArray(orden) &&
+      orden.length === preguntas.length &&
+      new Set(orden).size === preguntas.length &&
+      orden.every(indice => Number.isInteger(indice) && indice >= 0 && indice < preguntas.length)) {
+    return orden.map(indice => preguntas[indice]);
+  }
+
+  if (!Array.isArray(resultado.preguntas) || resultado.preguntas.length !== preguntas.length) return null;
+  const disponibles = new Set(preguntas.map((_, indice) => indice));
+  const ordenInferido = [];
+  for (const guardada of resultado.preguntas) {
+    const indice = [...disponibles].find(i =>
+      preguntas[i].p === guardada.p &&
+      JSON.stringify(preguntas[i].o) === JSON.stringify(guardada.o)
+    );
+    if (indice === undefined) return null;
+    disponibles.delete(indice);
+    ordenInferido.push(indice);
+  }
+  return ordenInferido.map(indice => preguntas[indice]);
+}
+
+// El administrador calcula las notas usando las claves privadas de "examenes".
 async function calificarPendientes() {
-  try {
-    const sinCalificar = await db.collection("resultados")
-      .where("nota", "==", 0).get();
-    if (sinCalificar.empty) return;
-    const batch = db.batch();
-    let cambios = 0;
-    for (const d of sinCalificar.docs) {
-      const r = d.data();
-      const ex = await db.collection("examenes").doc(r.cursoId).get();
-      if (!ex.exists) continue;
-      const qs = ex.data().preguntas || [];
-      if (!qs.length) continue;
-      const marcadas = r.respuestas || [];
-      const correctas = qs.map((q, i) => marcadas[i] === q.c);
-      const aciertos = correctas.filter(Boolean).length;
-      batch.update(d.ref, {
-        correctas,
-        aciertos,
-        desaciertos: qs.length - aciertos,
-        nota: Math.round((aciertos / qs.length) * 100),
-        calificadoEn: new Date().toISOString()
-      });
-      cambios++;
+  const pendientes = (await leerResultados()).filter(resultado =>
+    Number(resultado.nota) === 0 && !resultado.calificadoEn
+  );
+  let batch = db.batch(), cambios = 0, enLote = 0;
+  for (const resultado of pendientes) {
+    const examen = await db.collection("examenes").doc(resultado.cursoId).get();
+    if (!examen.exists) continue;
+    let preguntas = examen.data().preguntas || [];
+    if (!Array.isArray(resultado.preguntasOrden) && resultado.id) {
+      const estudiante = await db.collection("estudiantes").doc(resultado.id).get();
+      if (estudiante.exists && Array.isArray(estudiante.data().preguntasOrden)) {
+        resultado.preguntasOrden = estudiante.data().preguntasOrden;
+      }
     }
-    if (cambios) await batch.commit();
-  } catch (e) { /* si falla, se recalcula en el próximo ingreso */ }
+    preguntas = preguntasEnOrdenDeResultado(preguntas, resultado);
+    if (!preguntas) continue;
+    const respuestas = resultado.respuestas || [];
+    const correctas = preguntas.map((pregunta, indice) => respuestas[indice] === pregunta.c);
+    const aciertos = correctas.filter(Boolean).length;
+    batch.update(db.collection("resultados").doc(resultado.id), {
+      correctas,
+      aciertos,
+      desaciertos: preguntas.length - aciertos,
+      nota: Math.round((aciertos / preguntas.length) * 100),
+      calificadoEn: new Date().toISOString()
+    });
+    cambios++;
+    enLote++;
+    if (enLote === 450) {
+      await batch.commit();
+      batch = db.batch();
+      enLote = 0;
+    }
+  }
+  if (enLote) await batch.commit();
+  return cambios;
+}
+
+function seleccionarParaleloCursos(paralelo) {
+  if (!PARALELOS.includes(paralelo)) return;
+  paraleloCursosSeleccionado = paralelo;
+  $("encabezadoRindieron").textContent = `Rindieron ${paralelo}`;
+  PARALELOS.forEach(p => {
+    const boton = $(`btnParalelo${p}`);
+    const activo = p === paralelo;
+    boton.classList.toggle("active", activo);
+    boton.setAttribute("aria-pressed", String(activo));
+  });
+  pintarCursos();
 }
 
 function pintarCursos() {
   const esAdmin = rolPersonal === "admin";
   $("tablaCursos").innerHTML = CURSOS.map(nombre => {
     const id = cursoId(nombre), c = CACHE[id];
-    const cant = porCurso(id).length;
+    if (!c) return "";
+    const cant = porCurso(id).filter(r => r.paralelo === paraleloCursosSeleccionado).length;
     const cantidadPreguntas = Number.isInteger(c.cantidadPreguntas) ? c.cantidadPreguntas : "sin dato";
     return `<tr>
-      <td>${esc(nombre)}</td>
+      <td>${esc(c.nombre || nombre)}</td>
       <td><select class="form-select form-select-sm" id="ar_${id}" ${esAdmin ? "" : "disabled"}>${AREAS.map(a => `<option ${a === c.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></td>
-      <td><input class="form-control form-control-sm w-auto" type="number" min="1" id="mi_${id}" value="${c.minutos}" ${esAdmin ? "" : "disabled"}> min</td>
+      <td><input class="form-control form-control-sm w-auto" type="number" min="1" id="mi_${id}" value="${Number(c.minutos) || 30}" ${esAdmin ? "" : "disabled"}> min</td>
       <td>${c.activo ? "🟢 Activa" : "🔒 Concluida"}</td>
       <td>${cant}</td>
       <td>
         ${esAdmin ? `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="guardarFila('${id}')">Guardar</button>
-        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${cantidadPreguntas})</button>` : ""}
-        ${esAdmin ? `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarRegistrosCurso('${id}')">Eliminar estudiantes</button>` : ""}
-        <button class="btn btn-sm btn-primary me-1 mb-1" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>
+        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${cantidadPreguntas})</button>
+        <button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarRegistrosCurso('${id}', '${paraleloCursosSeleccionado}')">Depurar lista</button>` : ""}
+        <button class="btn btn-sm btn-primary px-2 py-1 me-1 mb-1" title="Reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>
         ${c.activo
           ? (esAdmin ? `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="alternarEstado('${id}')">Concluir</button>` : "")
           : `${esAdmin ? `<button class="btn btn-sm btn-success me-1 mb-1" onclick="alternarEstado('${id}')">Reabrir</button>` : ""}
-             <button class="btn btn-sm btn-primary me-1 mb-1" onclick="descargarCSV('${id}')">⬇ CSV</button>
-             <button class="btn btn-sm btn-primary me-1 mb-1" onclick="descargarPDF('${id}')">⬇ PDF</button>`}
+             <button class="btn btn-sm btn-primary px-2 py-1 me-1 mb-1" title="Descargar informe en PDF" onclick="descargarPDF('${id}')">⬇ PDF</button>`}
       </td></tr>`;
   }).join("");
-
-  // Las descargas generales se habilitan cuando hay evaluaciones concluidas
-  const hay = idsConcluidos().length > 0;
-  $("btnGeneral").disabled = !hay;
-  $("btnCsvTodos").disabled = !hay;
-  $("avisoDescargas").textContent = hay ? "" : "Concluye al menos una evaluación para habilitar las descargas.";
+  if (!$("tablaCursos").innerHTML) $("tablaCursos").innerHTML = "<tr><td colspan='6'>No hay cursos disponibles.</td></tr>";
 }
 
-// Guarda el Área y el temporizador del curso
+// Guarda el área y el temporizador del curso.
 async function guardarFila(id) {
   if (!exigirAdministrador()) return;
+  const c = CACHE[id];
+  if (!c) return alert("No se encontró la configuración del curso.");
   const area = $("ar_" + id).value, minutos = Number($("mi_" + id).value);
   if (!minutos || minutos < 1) return alert("Ingresa los minutos (mínimo 1).");
   try {
     await db.collection("cursos").doc(id).update({ area, minutos });
-    CACHE[id].area = area; CACHE[id].minutos = minutos;
-    alert("Guardado: " + CACHE[id].nombre + " · " + area + " · " + minutos + " min");
+    c.area = area;
+    c.minutos = minutos;
+    alert(`Guardado: ${c.nombre} · ${area} · ${minutos} min`);
   } catch (e) { alert("Error: " + e.message); }
 }
 
-// Concluye o reabre la evaluación de un curso
+// Concluye o reabre la evaluación del curso.
 async function alternarEstado(id) {
   if (!exigirAdministrador()) return;
   const c = CACHE[id];
+  if (!c) return alert("No se encontró la configuración del curso.");
   const msg = c.activo
     ? `¿Concluir la evaluación de ${c.nombre}? Los estudiantes ya no podrán rendirla.`
     : `¿Reabrir la evaluación de ${c.nombre}?`;
   if (!confirm(msg)) return;
   try {
-    await db.collection("cursos").doc(id).update({ activo: !c.activo, concluidoEn: c.activo ? new Date().toISOString() : null });
+    await db.collection("cursos").doc(id).update({
+      activo: !c.activo,
+      concluidoEn: c.activo ? new Date().toISOString() : null
+    });
     cargarAdmin();
   } catch (e) { alert("Error: " + e.message); }
 }
 
-async function eliminarDocumentosCurso(coleccion, id) {
+async function eliminarDocumentosCurso(coleccion, id, paralelo) {
   let eliminados = 0;
   while (true) {
     const snapshot = await db.collection(coleccion)
       .where("cursoId", "==", id)
+      .where("paralelo", "==", paralelo)
       .limit(400)
       .get();
     if (snapshot.empty) return eliminados;
@@ -734,25 +888,21 @@ async function eliminarDocumentosCurso(coleccion, id) {
   }
 }
 
-async function eliminarRegistrosCurso(id) {
+async function eliminarRegistrosCurso(id, paralelo) {
   if (!exigirAdministrador()) return;
-  if (!CURSOS.some(nombre => cursoId(nombre) === id)) return alert("El curso seleccionado no es válido.");
+  if (!CURSOS.some(nombre => cursoId(nombre) === id) || !PARALELOS.includes(paralelo)) return alert("El curso o paralelo seleccionado no es válido.");
   const curso = CACHE[id];
   if (!curso) return alert("No se encontró la configuración del curso.");
-  if (!confirm(`Se concluirá la evaluación de ${curso.nombre} y se eliminarán permanentemente todos sus registros de estudiantes y resultados. Las preguntas y la configuración del curso se conservarán. ¿Continuar?`)) return;
+  if (!confirm(`Se eliminarán permanentemente los registros de estudiantes y resultados de ${curso.nombre}, paralelo ${paralelo}. Las preguntas, la configuración y los datos de otros paralelos se conservarán. ¿Continuar?`)) return;
 
   let estudiantesEliminados = 0, resultadosEliminados = 0;
   try {
-    if (curso.activo) {
-      await db.collection("cursos").doc(id).update({ activo: false, concluidoEn: new Date().toISOString() });
-      curso.activo = false;
-    }
-    estudiantesEliminados = await eliminarDocumentosCurso("estudiantes", id);
-    resultadosEliminados = await eliminarDocumentosCurso("resultados", id);
+    estudiantesEliminados = await eliminarDocumentosCurso("estudiantes", id, paralelo);
+    resultadosEliminados = await eliminarDocumentosCurso("resultados", id, paralelo);
     RESULTADOS = await leerResultados();
     pintarCursos();
     reporte();
-    alert(`Eliminados ${estudiantesEliminados} registros de estudiantes y ${resultadosEliminados} resultados de ${curso.nombre}.`);
+    alert(`Eliminados ${estudiantesEliminados} registros de estudiantes y ${resultadosEliminados} resultados de ${curso.nombre}, paralelo ${paralelo}.`);
   } catch (e) {
     alert(`No se pudo completar el borrado. Se eliminaron ${estudiantesEliminados} registros de estudiantes y ${resultadosEliminados} resultados antes del error: ${e.message}`);
     await cargarAdmin();
@@ -763,17 +913,16 @@ async function eliminarRegistrosCurso(id) {
 let edit = null;
 
 async function editarPreguntas(id) {
+  if (!exigirAdministrador()) return;
   const c = CACHE[id];
-  // Las preguntas con clave están en "examenes" (solo personal)
-  let preguntas = (c.preguntas !== undefined) ? c.preguntas : null;
-  if (!preguntas) {
-    try {
-      const ex = await db.collection("examenes").doc(id).get();
-      preguntas = ex.exists ? ex.data().preguntas : [];
-      c.preguntas = preguntas;
-    } catch (e) { preguntas = []; }
+  if (!c) return alert("No se encontró la configuración del curso.");
+  try {
+    const documento = await db.collection("examenes").doc(id).get();
+    const preguntas = documento.exists ? documento.data().preguntas : [];
+    edit = { id, titulo: c.titulo, preguntas: JSON.parse(JSON.stringify(preguntas || [])) };
+  } catch (e) {
+    return alert("No se pudo cargar el examen: " + e.message);
   }
-  edit = { id, titulo: c.titulo, preguntas: JSON.parse(JSON.stringify(preguntas || [])) };
   pintarEditor();
   $("editor").scrollIntoView({ behavior: "smooth" });
 }
@@ -824,11 +973,11 @@ function quitarPregunta(i) {
 
 async function guardarPreguntas() {
   if (!exigirAdministrador()) return;
+  if (!edit || !CACHE[edit.id]) return alert("No se encontró la configuración del curso.");
   edit.titulo = $("edTitulo").value.trim() || "Evaluación";
   if (!edit.preguntas.length) return alert("Agrega al menos una pregunta.");
   try {
     await guardarExamenEnBD(edit.id, edit.titulo, edit.preguntas);
-    CACHE[edit.id].titulo = edit.titulo;
     alert("Preguntas guardadas.");
     pintarCursos();
   } catch (e) { alert("Error: " + e.message); }
@@ -860,9 +1009,68 @@ const datosPreguntas = s => ({
   ]
 });
 
+const porcentajesTorta = {
+  id: "porcentajesTorta",
+  afterDatasetsDraw(chart) {
+    if (!["pie", "doughnut"].includes(chart.config.type)) return;
+    const valores = chart.data.datasets[0].data.map(Number);
+    const total = valores.reduce((suma, valor) => suma + (Number.isFinite(valor) ? valor : 0), 0);
+    if (!total) return;
+
+    const contexto = chart.ctx;
+    chart.getDatasetMeta(0).data.forEach((arco, indice) => {
+      const valor = valores[indice];
+      if (!valor || !Number.isFinite(valor)) return;
+      const porcentaje = valor * 100 / total;
+      if (porcentaje < 4) return;
+      const angulo = (arco.startAngle + arco.endAngle) / 2;
+      const radio = (arco.innerRadius + arco.outerRadius) / 2;
+      const x = arco.x + Math.cos(angulo) * radio;
+      const y = arco.y + Math.sin(angulo) * radio;
+      contexto.save();
+      contexto.fillStyle = "#fff";
+      contexto.font = "bold 14px sans-serif";
+      contexto.textAlign = "center";
+      contexto.textBaseline = "middle";
+      contexto.fillText(`${porcentaje.toFixed(1)}%`, x, y);
+      contexto.restore();
+    });
+  }
+};
+
+function textoPorcentajes(s) {
+  const total = s.aciertos + s.desaciertos;
+  const porcentaje = cantidad => total ? (cantidad * 100 / total).toFixed(1) : "0.0";
+  return `Aciertos: ${porcentaje(s.aciertos)}%   Desaciertos: ${porcentaje(s.desaciertos)}%`;
+}
+
+function paraleloExportacionSeleccionado() {
+  return paraleloCursosSeleccionado;
+}
+
+const filtrarParalelo = (lista, paralelo) => lista.filter(r => r.paralelo === paralelo);
+
+function agregarTortasPorParalelo(doc, lista, y, paralelo) {
+  const anchoColumna = 60;
+  const tamanoGrafico = 42;
+  const x = 75;
+  const s = stats(filtrarParalelo(lista, paralelo));
+  doc.setFontSize(9); doc.setFont("helvetica", "bold");
+  doc.text(`Paralelo ${paralelo}`, x + anchoColumna / 2, y, { align: "center" });
+  if (s.aciertos + s.desaciertos > 0) {
+    doc.addImage(imagenGrafico("pie", datosTorta(s), 300, 300), "PNG", x + 9, y + 3, tamanoGrafico, tamanoGrafico);
+    doc.setFontSize(7); doc.setFont("helvetica", "normal");
+    doc.text(doc.splitTextToSize(textoPorcentajes(s), anchoColumna - 2), x + 1, y + 51);
+  } else {
+    doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text("Sin resultados", x + anchoColumna / 2, y + 26, { align: "center" });
+  }
+  return y + 65;
+}
+
 function dibujar(id, tipo, data) {
   if (graficos[id]) graficos[id].destroy();
-  graficos[id] = new Chart($(id), { type: tipo, data, options: { responsive: true } });
+  graficos[id] = new Chart($(id), { type: tipo, data, options: { responsive: true }, plugins: [porcentajesTorta] });
 }
 
 function reporte() {
@@ -871,23 +1079,10 @@ function reporte() {
   const s = stats(lista);
   $("resumen").textContent = `${s.n} evaluaciones · Promedio: ${s.promedio}/100`;
 
-  dibujar("gTotal", "doughnut", datosTorta(s));
-
-  const grupos = {};
-  lista.forEach(r => {
-    const k = `${r.curso} "${r.paralelo}"`;
-    grupos[k] = grupos[k] || { a: 0, d: 0 };
-    grupos[k].a += r.aciertos; grupos[k].d += r.desaciertos;
+  PARALELOS.forEach(paralelo => {
+    const estadisticasParalelo = stats(lista.filter(r => r.paralelo === paralelo));
+    dibujar(`gParalelo${paralelo}`, "pie", datosTorta(estadisticasParalelo));
   });
-  dibujar("gCursos", "bar", {
-    labels: Object.keys(grupos),
-    datasets: [
-      { label: "Aciertos", data: Object.values(grupos).map(g => g.a), backgroundColor: "#16a34a" },
-      { label: "Desaciertos", data: Object.values(grupos).map(g => g.d), backgroundColor: "#dc2626" }
-    ]
-  });
-
-  dibujar("gPreguntas", "bar", datosPreguntas(s));
 
   $("tabla").innerHTML = [...lista].sort(compararNomina).map(r => `
     <tr><td>${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(r.curso)}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
@@ -909,14 +1104,16 @@ async function descargarExamenEstudiante(id) {
   if (!r) return alert("No se encontró el resultado del estudiante. Actualiza el reporte e inténtalo de nuevo.");
 
   const preguntasGuardadas = Array.isArray(r.preguntas) && r.preguntas.length ? r.preguntas : null;
-  // El personal puede leer el examen con claves desde "examenes"
-  let preguntas = preguntasGuardadas;
-  if (!preguntas && r.cursoId) {
+  let preguntasBase = null;
+  if (r.cursoId && r.paralelo) {
     try {
-      const ex = await db.collection("examenes").doc(r.cursoId).get();
-      if (ex.exists) preguntas = ex.data().preguntas;
-    } catch (e) { }
+      const documento = await db.collection("examenes").doc(r.cursoId).get();
+      if (documento.exists) preguntasBase = documento.data().preguntas;
+    } catch (e) {
+      return alert("No tienes permiso para leer este examen o no se pudo cargar: " + e.message);
+    }
   }
+  const preguntas = preguntasEnOrdenDeResultado(preguntasBase, r) || preguntasGuardadas;
   if (!preguntas || !preguntas.length) return alert("No se encontraron las preguntas de esta evaluación.");
 
   const doc = new window.jspdf.jsPDF();
@@ -938,8 +1135,8 @@ async function descargarExamenEstudiante(id) {
   escribir(`${r.apellidos} ${r.nombres} · ${r.curso} "${r.paralelo}" · ${r.area}`, 15, 10, false);
   escribir(`Aciertos: ${r.aciertos} · Desaciertos: ${r.desaciertos} · Nota: ${r.nota}/100`, 15, 11, true);
   escribir(`Fecha: ${new Date(r.fecha).toLocaleString("es-BO")}`, 15, 9, false);
-  if (!preguntasGuardadas) {
-    escribir("Aviso: este resultado antiguo no conserva una copia del examen; se muestran las preguntas actuales del curso.", 15, 9, false);
+  if (!preguntas.some(pregunta => Number.isInteger(pregunta.c))) {
+    escribir("Aviso: el examen disponible no conserva las claves de respuesta.", 15, 9, false);
   }
   y += 3;
 
@@ -960,50 +1157,26 @@ async function descargarExamenEstudiante(id) {
   doc.save(`examen_${slug(r.apellidos + "_" + r.nombres)}.pdf`);
 }
 
-async function descargarInformePorCurso() {
-  if (!exigirAccesoDescargas()) return;
-  if (!window.jspdf) return alert("No se cargó la librería PDF (revisa tu conexión).");
-  try {
-    RESULTADOS = await leerResultados();
-    const doc = new window.jspdf.jsPDF();
-    doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text("Informe de resultados por curso".toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
-    doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    doc.text("Porcentajes calculados sobre el total de respuestas registradas.", 15, 25);
-    doc.text("Generado: " + new Date().toLocaleString("es-BO"), 15, 31);
-
-    const filas = CURSOS.map(nombre => {
-      const id = cursoId(nombre), s = stats(porCurso(id));
-      const total = s.aciertos + s.desaciertos;
-      const porcentajeAciertos = total ? (s.aciertos * 100 / total).toFixed(1) + "%" : "0.0%";
-      const porcentajeDesaciertos = total ? (s.desaciertos * 100 / total).toFixed(1) + "%" : "0.0%";
-      return [nombre, s.n, total, porcentajeAciertos, porcentajeDesaciertos, s.promedio + "/100"];
-    });
-    tabla(doc, 42, ["Curso", "Estudiantes", "Respuestas", "Aciertos", "Desaciertos", "Promedio"], [42, 34, 30, 24, 27, 23], filas);
-    doc.save("informe_porcentajes_por_curso.pdf");
-  } catch (e) {
-    alert("No se pudo generar el informe: " + e.message);
-  }
-}
-
 async function descargarInformeCurso(id) {
   if (!exigirAccesoDescargas()) return;
+  const paralelo = paraleloExportacionSeleccionado();
+  if (!paralelo) return;
   if (!CURSOS.some(nombre => cursoId(nombre) === id)) return alert("El curso seleccionado no es válido.");
   if (!window.jspdf) return alert("No se cargó la librería PDF (revisa tu conexión).");
 
   try {
     RESULTADOS = await leerResultados();
     const curso = CACHE[id];
-    if (!curso) return alert("No se encontró la configuración del curso. Actualiza el reporte e inténtalo de nuevo.");
+    if (!curso) return alert("No se encontró la configuración del curso y paralelo. Actualiza el reporte e inténtalo de nuevo.");
 
-    const lista = porCurso(id);
+    const lista = filtrarParalelo(porCurso(id), paralelo);
     const s = stats(lista);
     const total = s.aciertos + s.desaciertos;
     const porcentaje = cantidad => total ? (cantidad * 100 / total).toFixed(1) + "%" : "0.0%";
     const doc = new window.jspdf.jsPDF();
 
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text(`Resumen de ${curso.nombre}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
+    doc.text(`Resumen de ${curso.nombre} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
     doc.text(`Área: ${curso.area} · Generado: ${new Date().toLocaleString("es-BO")}`, 15, 26);
 
@@ -1017,17 +1190,22 @@ async function descargarInformeCurso(id) {
 
     if (s.n) {
       y += 8;
+      if (y + 75 > 275) { doc.addPage(); y = 20; }
       doc.setFontSize(12); doc.setFont("helvetica", "bold");
-      doc.text("RESULTADOS POR PARALELO", doc.internal.pageSize.getWidth() / 2, y, { align: "center" });
+      doc.text(`PORCENTAJE DE RESPUESTAS - PARALELO ${paralelo}`, doc.internal.pageSize.getWidth() / 2, y, { align: "center" });
       y += 5;
-      const filasParalelos = PARALELOS.map(paralelo => {
-        const paraleloStats = stats(lista.filter(r => r.paralelo === paralelo));
+      y = agregarTortasPorParalelo(doc, lista, y, paralelo);
+      doc.setFontSize(12); doc.setFont("helvetica", "bold");
+      doc.text(`RESULTADOS - PARALELO ${paralelo}`, doc.internal.pageSize.getWidth() / 2, y, { align: "center" });
+      y += 5;
+      const filasParalelos = [paralelo].map(paraleloFila => {
+        const paraleloStats = stats(lista.filter(r => r.paralelo === paraleloFila));
         const totalParalelo = paraleloStats.aciertos + paraleloStats.desaciertos;
         const porcentajeParalelo = cantidad => totalParalelo
           ? (cantidad * 100 / totalParalelo).toFixed(1) + "%"
           : "0.0%";
         return [
-          paralelo,
+          paraleloFila,
           paraleloStats.n,
           `${paraleloStats.aciertos} (${porcentajeParalelo(paraleloStats.aciertos)})`,
           `${paraleloStats.desaciertos} (${porcentajeParalelo(paraleloStats.desaciertos)})`,
@@ -1046,34 +1224,13 @@ async function descargarInformeCurso(id) {
       tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota"], [65, 20, 30, 30, 35], estudiantes);
     } else {
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      doc.text("Aún no hay evaluaciones registradas para este curso.", 15, y + 8);
+      doc.text(`Aún no hay evaluaciones registradas para el paralelo ${paralelo}.`, 15, y + 8);
     }
 
-    doc.save(`informe_porcentajes_${id}.pdf`);
+    doc.save(`informe_porcentajes_${id}_paralelo_${paralelo}.pdf`);
   } catch (e) {
     alert("No se pudo generar el informe del curso: " + e.message);
   }
-}
-
-/* ---------- Descargas: CSV ---------- */
-function bajar(blob, nombre) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = nombre;
-  a.click();
-}
-
-// Resumen de lo que obtuvo cada estudiante (se abre en Excel)
-async function descargarCSV(id) {
-  if (!exigirAccesoDescargas()) return;
-  RESULTADOS = await leerResultados();
-  const ids = id ? [id] : idsConcluidos();
-  const filas = [["Curso", "Área", "Paralelo", "Apellidos", "Nombres", "Aciertos", "Desaciertos", "Nota", "Fecha"]];
-  ids.forEach(cid => [...porCurso(cid)]
-    .sort(compararNomina)
-    .forEach(r => filas.push([r.curso, r.area, r.paralelo, r.apellidos, r.nombres, r.aciertos, r.desaciertos, r.nota, r.fecha])));
-  const csv = filas.map(f => f.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-  bajar(new Blob(["\ufeff" + csv], { type: "text/csv" }), id ? `notas_${id}.csv` : "notas_todos.csv");
 }
 
 /* ---------- Descargas: PDF con gráficos ---------- */
@@ -1083,7 +1240,11 @@ function imagenGrafico(tipo, data, ancho, alto) {
   const cv = document.createElement("canvas");
   cv.width = ancho; cv.height = alto;
   const fondo = { id: "fondo", beforeDraw(ch) { ch.ctx.save(); ch.ctx.fillStyle = "#fff"; ch.ctx.fillRect(0, 0, ch.width, ch.height); ch.ctx.restore(); } };
-  const ch = new Chart(cv, { type: tipo, data, options: { animation: false, responsive: false, devicePixelRatio: 1 }, plugins: [fondo] });
+  const ch = new Chart(cv, {
+    type: tipo, data,
+    options: { animation: false, responsive: false, devicePixelRatio: 1, plugins: { legend: { display: false } } },
+    plugins: [fondo, porcentajesTorta]
+  });
   const url = cv.toDataURL("image/png");
   ch.destroy();
   return url;
@@ -1126,49 +1287,65 @@ function tabla(doc, y, cabecera, anchos, filas) {
   return y;
 }
 
-async function generarPDF(ids, archivo, titulo) {
+async function generarPDF(ids, archivo, titulo, paralelo) {
   if (!exigirAccesoDescargas()) return;
   if (!window.jspdf) return alert("No se cargó la librería PDF (revisa tu conexión).");
   RESULTADOS = await leerResultados();
   const doc = new window.jspdf.jsPDF();
   let y = 20;
+  const porParalelo = id => filtrarParalelo(porCurso(id), paralelo);
 
   // Portada: resumen general por curso
   doc.setFontSize(16); doc.setFont("helvetica", "bold");
-  doc.text(titulo.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
+  doc.text(`${titulo} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
   doc.setFontSize(10); doc.setFont("helvetica", "normal");
   doc.text("Generado: " + new Date().toLocaleString("es-BO"), 15, y); y += 10;
 
   const filas = ids.map(id => {
-    const c = CACHE[id], s = stats(porCurso(id));
+    const c = CACHE[id], s = stats(porParalelo(id));
     return [c.nombre, c.area, s.n, s.promedio + "/100", s.aciertos, s.desaciertos];
   });
   y = tabla(doc, y, ["Curso", "Área", "Estud.", "Promedio", "Aciertos", "Desaciertos"], [40, 35, 22, 27, 27, 28], filas);
 
+  const listaGeneral = ids.flatMap(porParalelo);
+  const resumenGeneral = stats(listaGeneral);
+  if (resumenGeneral.n) {
+    if (y + 75 > 275) { doc.addPage(); y = 20; }
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(`PORCENTAJE DE RESPUESTAS - PARALELO ${paralelo}`, 15, y);
+    y = agregarTortasPorParalelo(doc, listaGeneral, y + 5, paralelo);
+  }
+
   // Gráfico comparativo de promedios por curso
-  const conDatos = ids.filter(id => porCurso(id).length);
+  const conDatos = ids.filter(id => porParalelo(id).length);
   if (conDatos.length > 1) {
-    if (y > 200) { doc.addPage(); y = 20; }
+    if (y + 80 > 275) { doc.addPage(); y = 20; }
     const img = imagenGrafico("bar", {
       labels: conDatos.map(id => CACHE[id].nombre),
-      datasets: [{ label: "Promedio (sobre 100)", data: conDatos.map(id => stats(porCurso(id)).promedio), backgroundColor: "#1d4ed8" }]
+      datasets: [{ label: "Promedio (sobre 100)", data: conDatos.map(id => stats(porParalelo(id)).promedio), backgroundColor: "#1d4ed8" }]
     }, 850, 350);
     doc.addImage(img, "PNG", 15, y + 4, 170, 70);
+    y += 80;
   }
 
   // Una página por curso: gráficos + lista de estudiantes
   ids.forEach(id => {
-    const c = CACHE[id], lista = porCurso(id), s = stats(lista);
+    const c = CACHE[id], lista = porParalelo(id), s = stats(lista);
     doc.addPage(); y = 20;
     doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text(`${c.nombre} - ${c.area}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
+    doc.text(`${c.nombre} - ${c.area} - PARALELO ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
     doc.text(`Estudiantes: ${s.n}   Promedio: ${s.promedio}/100   Aciertos: ${s.aciertos}   Desaciertos: ${s.desaciertos}`, 15, y); y += 8;
     if (!s.n) { doc.text("Sin resultados.", 15, y); return; }
 
-    doc.addImage(imagenGrafico("doughnut", datosTorta(s), 400, 400), "PNG", 15, y, 65, 65);
-    doc.addImage(imagenGrafico("bar", datosPreguntas(s), 700, 400), "PNG", 85, y, 110, 63);
-    y += 72;
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(`PORCENTAJE DE RESPUESTAS - PARALELO ${paralelo}`, 15, y); y += 5;
+    y = agregarTortasPorParalelo(doc, lista, y, paralelo);
+    if (y + 70 > 275) { doc.addPage(); y = 20; }
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("ACIERTOS Y DESACIERTOS POR PREGUNTA", 15, y); y += 4;
+    doc.addImage(imagenGrafico("bar", datosPreguntas(s), 700, 350), "PNG", 15, y, 180, 55);
+    y += 60;
 
     doc.setFontSize(11); doc.setFont("helvetica", "bold");
     doc.text("RESULTADOS POR ESTUDIANTE", doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
@@ -1180,9 +1357,13 @@ async function generarPDF(ids, archivo, titulo) {
   doc.save(archivo);
 }
 
-const descargarPDF = id => generarPDF([id], `resumen_${id}.pdf`, `Resumen de ${CACHE[id].nombre}`);
-const descargarGeneral = () => generarPDF(idsConcluidos(), "resumen_general.pdf", "Resumen general de evaluaciones");
-
+const descargarPDF = id => {
+  const paralelo = paraleloExportacionSeleccionado();
+  if (!paralelo) return;
+  if (!CURSOS.some(nombre => cursoId(nombre) === id)) return alert("El curso seleccionado no es válido.");
+  const curso = CACHE[id] || { nombre: id };
+  return generarPDF([id], `resumen_${id}_paralelo_${paralelo}.pdf`, `Resumen de ${curso.nombre}`, paralelo);
+};
 /* ---------- Importar un examen desde texto ---------- */
 let importadas = [];
 
@@ -1235,34 +1416,47 @@ function analizarExamen() {
   $("btnImportar").disabled = false;
 }
 
-// Guarda el examen COMPLETO (título, preguntas y respuestas) en la base de datos.
-// Reemplaza en su totalidad el examen anterior del curso (cursos + examenes).
+// Las claves se guardan en examenes y las preguntas sin claves se publican en pruebas.
 async function guardarExamenEnBD(id, titulo, preguntas) {
+  if (!exigirAdministrador()) throw new Error("Esta acción está reservada al administrador.");
   const c = CACHE[id];
+  if (!c) throw new Error("No se encontró la configuración del curso.");
   const examen = examenDe(id, titulo, preguntas);
-  // Reemplazo total: set() sustituye todo el contenido anterior.
-  // "examenes" guarda la clave (c) — solo el personal la lee.
-  // "pruebas" guarda las mismas preguntas SIN la clave — lo que ve el estudiante.
   await db.collection("examenes").doc(id).set(examen);
   await db.collection("pruebas").doc(id).set({
-    cursoId: id, titulo, cantidad: examen.cantidad,
+    cursoId: id,
+    titulo,
+    cantidad: examen.cantidad,
     preguntas: publicarSinClave(examen.preguntas),
     actualizado: examen.actualizado
   });
-  await db.collection("cursos").doc(id).update({ titulo, cantidadPreguntas: examen.cantidad });
-  c.titulo = titulo; c.cantidadPreguntas = examen.cantidad; delete c.preguntas;
+  await db.collection("cursos").doc(id).update({
+    titulo,
+    cantidadPreguntas: examen.cantidad
+  });
+  c.titulo = titulo;
+  c.cantidadPreguntas = examen.cantidad;
+  delete c.preguntas;
+  CACHE_PRUEBAS[id] = {
+    cursoId: id,
+    titulo,
+    cantidad: examen.cantidad,
+    preguntas: publicarSinClave(preguntas)
+  };
 }
 
 // Guarda en la base de datos el examen cargado (archivo .json o texto pegado)
 async function guardarImportacion() {
   if (!exigirAdministrador()) return;
-  const id = $("impCurso").value, c = CACHE[id];
+  const id = $("impCurso").value;
+  const c = CACHE[id];
+  if (!c) return alert("No se encontró la configuración del curso.");
   if (!importadas.length) return;
   if (!confirm(`Se REEMPLAZARÁ por completo el examen de ${c.nombre} (${c.cantidadPreguntas || 0} preguntas actuales) por ${importadas.length} preguntas nuevas. ¿Continuar?`)) return;
   const titulo = $("impTitulo").value.trim() || "Evaluación";
   try {
     await guardarExamenEnBD(id, titulo, importadas);
-    alert(`Listo: examen guardado en la base de datos. ${importadas.length} preguntas reemplazaron totalmente las anteriores de ${c.nombre}.`);
+    alert(`Listo: examen guardado para ${c.nombre}.`);
     importadas = [];
     $("btnImportar").disabled = true;
     pintarCursos();
