@@ -55,6 +55,18 @@ async function obtenerClavesCurso(resultado) {
   const user = auth.currentUser;
   if (!user || !resultado || !resultado.cursoId) return null;
 
+  // El personal puede leer las claves directamente, sin crear un desbloqueo.
+  if (!user.isAnonymous) {
+    try {
+      const sol = await db.collection("soluciones").doc(resultado.cursoId).get();
+      if (!sol.exists) return null;
+      const claves = sol.data().claves;
+      return Array.isArray(claves) ? claves : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   const desbloqueoId = user.uid;
   const ref = db.collection("desbloqueos").doc(resultado.cursoId).collection("estudiantes").doc(desbloqueoId);
   let snap;
@@ -112,6 +124,25 @@ const PREGUNTAS_EJEMPLO = [
 // ---------- UTILIDADES ----------
 const $ = id => document.getElementById(id);
 const MODO_ESTUDIANTE = new URLSearchParams(window.location.search).get("modo") === "estudiante";
+const ULTIMO_INTENTO = "eval_ultimo_intento";
+
+// Guarda los datos del último intento para poder consultar la nota sin volver a escribirlos.
+function guardarUltimoIntento(est) {
+  try {
+    localStorage.setItem(ULTIMO_INTENTO, JSON.stringify({
+      id: est.id, nombres: est.nombres, apellidos: est.apellidos,
+      curso: est.curso, cursoId: est.cursoId, paralelo: est.paralelo
+    }));
+  } catch (e) { }
+}
+function leerUltimoIntento() {
+  try {
+    const dato = JSON.parse(localStorage.getItem(ULTIMO_INTENTO) || "null");
+    return dato && dato.id ? dato : null;
+  } catch (e) {
+    return null;
+  }
+}
 const esc = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
 function bajar(blob, nombre) {
   const url = URL.createObjectURL(blob);
@@ -218,6 +249,14 @@ $("linkEstudiantes").value = urlEstudiantes.href;
   try { await cargarCursos(); }
   catch (e) { avisarError("No se pudo conectar con Firestore: " + e.message + " (revisa las reglas de la base de datos)."); }
   actualizarCurso();
+  const ultimo = leerUltimoIntento();
+  if (ultimo && !$("nombres").value && !$("apellidos").value) {
+    $("nombres").value = ultimo.nombres || "";
+    $("apellidos").value = ultimo.apellidos || "";
+    if (ultimo.curso) $("curso").value = ultimo.curso;
+    if (ultimo.paralelo) $("paralelo").value = ultimo.paralelo;
+    actualizarCurso();
+  }
 })();
 
 // Muestra automáticamente el curso, el Área y el tiempo
@@ -389,12 +428,10 @@ function pintarPreguntaActual() {
           <label class="form-check-label d-block" for="p${i}o${j}">${"ABCD"[j]}) ${esc(op)}</label>
         </div>`).join("")}
     </div>`;
-  // Botones: Anterior se oculta en la primera, Siguiente cambia a Terminar en la última
+  // Botones: Anterior se desactiva en la primera; Siguiente se oculta en la última.
   $("btnAnterior").disabled = tiempoAgotado || i === 0;
   $("btnSiguiente").disabled = tiempoAgotado;
-  $("btnSaltar").disabled = tiempoAgotado;
   $("btnSiguiente").classList.toggle("d-none", i === total - 1);
-  $("btnSaltar").classList.toggle("d-none", i === total - 1);
   $("barraProgreso").style.width = Math.round(((i + 1) / total) * 100) + "%";
   $("barraProgreso").parentElement.setAttribute("aria-valuenow", Math.round(((i + 1) / total) * 100));
   pintarNavPreguntas();
@@ -414,15 +451,6 @@ function preguntaMover(delta) {
   if (tiempoAgotado) return;
   const total = evaluacion.preguntas.length;
   indicePregunta = Math.min(total - 1, Math.max(0, indicePregunta + delta));
-  guardarBorrador();
-  pintarPreguntaActual();
-}
-
-// Salta la pregunta sin responderla (avanza a la siguiente)
-function preguntaSaltar() {
-  if (tiempoAgotado) return;
-  borrador[indicePregunta] = -1;   // desmarca cualquier opción elegida
-  if (indicePregunta < evaluacion.preguntas.length - 1) indicePregunta++;
   guardarBorrador();
   pintarPreguntaActual();
 }
@@ -686,6 +714,7 @@ async function guardarResultado(marcadas) {
 
   borrarBorrador();
   try { localStorage.setItem("eval_rindio_" + estudiante.id, "1"); } catch (e) { }
+  guardarUltimoIntento(estudiante);
   pintarResultado(resultado, false);
   $("estadoGuardado").textContent = "✅ Resultado guardado.";
 }
@@ -787,15 +816,28 @@ async function sesionAnonima() {
 // Consulta de nota desde la pantalla inicial (mismo dispositivo y navegador).
 async function consultarNota() {
   const nombres = $("nombres").value.trim(), apellidos = $("apellidos").value.trim();
-  if (!nombres || !apellidos) return alert("Escribe tus nombres y apellidos.");
+  const ultimo = leerUltimoIntento();
+  let id;
+
+  if (nombres && apellidos) {
+    id = `${cursoId($("curso").value)}_${slug(apellidos + " " + nombres)}`;
+  } else if (!nombres && !apellidos && ultimo?.id) {
+    // Si ya envió desde este dispositivo, se usa el intento guardado sin volver a escribir los datos.
+    id = ultimo.id;
+  } else if (!nombres && !apellidos) {
+    return alert("Escribe tus nombres y apellidos.");
+  } else {
+    return alert("Escribe los nombres y apellidos completos.");
+  }
 
   const caja = $("estadoNota");
+  const boton = $("btnConsultarNota");
+  if (boton) { boton.disabled = true; boton.textContent = "Consultando…"; }
   caja.className = "alert alert-info mt-3 mb-0";
   caja.textContent = "Consultando…";
   caja.classList.remove("d-none");
   try {
     await sesionAnonima();
-    const id = `${cursoId($("curso").value)}_${slug(apellidos + " " + nombres)}`;
     const documento = await db.collection("resultados").doc(id).get();
     if (!documento.exists) {
       caja.className = "alert alert-warning mt-3 mb-0";
@@ -826,6 +868,8 @@ async function consultarNota() {
     caja.textContent = e.code === "permission-denied"
       ? "Por seguridad, la nota solo se puede consultar desde el mismo dispositivo y navegador donde se envió la evaluación."
       : "No se pudo consultar la nota: " + e.message;
+  } finally {
+    if (boton) { boton.disabled = false; boton.textContent = "Consultar mi nota"; }
   }
 }
 
