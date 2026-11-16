@@ -42,6 +42,16 @@ const PREGUNTAS_EJEMPLO = [
 const $ = id => document.getElementById(id);
 const MODO_ESTUDIANTE = new URLSearchParams(window.location.search).get("modo") === "estudiante";
 const esc = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
+function bajar(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 // Convierte texto en un código seguro: "5to de Secundaria" -> "5to-de-secundaria"
 const slug = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
   .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -871,18 +881,21 @@ async function alternarEstado(id) {
   } catch (e) { alert("Error: " + e.message); }
 }
 
-async function eliminarDocumentosCurso(coleccion, id, paralelo) {
+async function eliminarDocumentosCurso(coleccion, id, paralelo, eliminarRelacionado) {
   let eliminados = 0;
   while (true) {
     const snapshot = await db.collection(coleccion)
       .where("cursoId", "==", id)
       .where("paralelo", "==", paralelo)
-      .limit(400)
+      .limit(eliminarRelacionado ? 250 : 400)
       .get();
     if (snapshot.empty) return eliminados;
 
     const batch = db.batch();
-    snapshot.docs.forEach(documento => batch.delete(documento.ref));
+    snapshot.docs.forEach(documento => {
+      batch.delete(documento.ref);
+      if (eliminarRelacionado) eliminarRelacionado(batch, documento);
+    });
     await batch.commit();
     eliminados += snapshot.size;
   }
@@ -893,18 +906,20 @@ async function eliminarRegistrosCurso(id, paralelo) {
   if (!CURSOS.some(nombre => cursoId(nombre) === id) || !PARALELOS.includes(paralelo)) return alert("El curso o paralelo seleccionado no es válido.");
   const curso = CACHE[id];
   if (!curso) return alert("No se encontró la configuración del curso.");
-  if (!confirm(`Se eliminarán permanentemente los registros de estudiantes y resultados de ${curso.nombre}, paralelo ${paralelo}. Las preguntas, la configuración y los datos de otros paralelos se conservarán. ¿Continuar?`)) return;
+  if (!confirm(`Se eliminarán permanentemente los registros de estudiantes, sus borradores de respuesta y resultados de ${curso.nombre}, paralelo ${paralelo}. Las preguntas, la configuración y los datos de otros paralelos se conservarán. ¿Continuar?`)) return;
 
   let estudiantesEliminados = 0, resultadosEliminados = 0;
   try {
-    estudiantesEliminados = await eliminarDocumentosCurso("estudiantes", id, paralelo);
+    estudiantesEliminados = await eliminarDocumentosCurso("estudiantes", id, paralelo, (batch, documento) => {
+      batch.delete(db.collection("respuestas").doc("borrador_" + documento.id));
+    });
     resultadosEliminados = await eliminarDocumentosCurso("resultados", id, paralelo);
     RESULTADOS = await leerResultados();
     pintarCursos();
     reporte();
-    alert(`Eliminados ${estudiantesEliminados} registros de estudiantes y ${resultadosEliminados} resultados de ${curso.nombre}, paralelo ${paralelo}.`);
+    alert(`Eliminados ${estudiantesEliminados} registros de estudiantes, sus borradores de respuesta y ${resultadosEliminados} resultados de ${curso.nombre}, paralelo ${paralelo}.`);
   } catch (e) {
-    alert(`No se pudo completar el borrado. Se eliminaron ${estudiantesEliminados} registros de estudiantes y ${resultadosEliminados} resultados antes del error: ${e.message}`);
+    alert(`No se pudo completar el borrado. Se eliminaron ${estudiantesEliminados} registros de estudiantes con sus borradores y ${resultadosEliminados} resultados antes del error: ${e.message}`);
     await cargarAdmin();
   }
 }
