@@ -80,7 +80,12 @@ service cloud.firestore {
     }
 
     match /resultados/{resultadoId} {
-      allow get, list: if esPersonal();
+      // El estudiante puede consultar su propia nota desde el mismo navegador.
+      allow get: if esPersonal() ||
+        (esAnonimo() &&
+          (!exists(/databases/$(database)/documents/resultados/$(resultadoId)) ||
+            resource.data.authUid == request.auth.uid));
+      allow list: if esPersonal();
       allow create: if esAnonimo() &&
         request.resource.data.authUid == request.auth.uid &&
         exists(/databases/$(database)/documents/estudiantes/$(resultadoId)) &&

@@ -7,14 +7,14 @@
 <meta name="description" content="Plataforma de evaluación en línea de la Unidad Educativa Guido Villagómez. Los estudiantes pueden rendir evaluaciones y el personal docente gestionar exámenes y resultados.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://daniel-494847.github.io/guido-villagomez/">
-<meta property="og:title" content="Evaluación en línea | Unidad Educativa Guido Villagómez">
+<meta property="og:title" content="EVALUACION FINAL | Unidad Educativa Guido Villagómez">
 <meta property="og:description" content="Plataforma de evaluación en línea de la Unidad Educativa Guido Villagómez. Los estudiantes pueden rendir evaluaciones y el personal docente gestionar exámenes y resultados.">
 <meta property="og:image" content="https://daniel-494847.github.io/guido-villagomez/escudo.webp">
 <meta property="og:image:alt" content="Escudo de la Unidad Educativa Guido Villagómez">
 <meta property="og:image:width" content="720">
 <meta property="og:image:height" content="720">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Evaluación en línea | Unidad Educativa Guido Villagómez">
+<meta name="twitter:title" content="EVALUACION FINAL | Unidad Educativa Guido Villagómez">
 <meta name="twitter:description" content="Plataforma de evaluación en línea de la Unidad Educativa Guido Villagómez. Los estudiantes pueden rendir evaluaciones y el personal docente gestionar exámenes y resultados.">
 <meta name="twitter:image" content="https://daniel-494847.github.io/guido-villagomez/escudo.webp">
 <meta name="twitter:image:alt" content="Escudo de la Unidad Educativa Guido Villagómez">
@@ -27,7 +27,7 @@
   <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div class="d-flex align-items-center gap-2">
     
-    <h1 class="h4 mb-0"><img src="./escudo.webp" alt="" width="30" height="30" class="me-1 align-text-bottom" aria-hidden="true">Evaluación en línea</h1>
+    <h1 class="h4 mb-0"><img src="./escudo.webp" alt="" width="30" height="30" class="me-1 align-text-bottom" aria-hidden="true">EVALUACION FINAL</h1>
   </div>
   <nav class="d-flex flex-wrap justify-content-end gap-1">
     <button id="tabEst" class="btn btn-sm btn-light text-primary fw-semibold text-nowrap" onclick="mostrar('est')">Estudiante</button>
@@ -56,7 +56,11 @@
       <div class="col-12 col-md-6"><label for="paralelo" class="form-label">Paralelo</label><select class="form-select" id="paralelo" onchange="actualizarCurso()"></select></div>
     </div>
     <p class="mb-0"><span class="badge text-bg-primary rounded-pill px-3 py-2 mt-3" id="badgeCurso"></span></p>
-    <button class="btn btn-primary mt-3" id="btnIniciar" onclick="iniciar()">Iniciar evaluación</button>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button class="btn btn-primary" id="btnIniciar" onclick="iniciar()">Iniciar evaluación</button>
+      <button class="btn btn-outline-primary" id="btnConsultarNota" onclick="consultarNota()">Consultar mi nota</button>
+    </div>
+    <div id="estadoNota" class="alert d-none mt-3 mb-0" role="alert"></div>
     <p class="small text-secondary mt-2 mb-0">Si sales o se apaga el celular, vuelve con el mismo curso y los mismos nombres desde el mismo dispositivo y navegador. El tiempo seguirá corriendo.</p>
     </div>
   </div>
@@ -124,11 +128,14 @@
   <div class="card shadow-sm mb-3 d-none" id="paso3">
     <div class="card-body">
     <h2 class="h4">Resultado</h2>
+    <p class="small text-secondary mb-1" id="mensajeNota"></p>
     <div class="display-4 fw-bold" id="notaFinal"></div>
-    <p><span class="text-success fw-semibold" id="nAciertos"></span> · <span class="text-danger fw-semibold" id="nDesaciertos"></span></p>
+    <p class="mb-1"><span class="text-success fw-semibold" id="nAciertos"></span><span class="text-danger fw-semibold" id="nDesaciertos"></span></p>
     <p class="small text-secondary" id="estadoGuardado"></p>
-    <div id="revision"></div>
-    <button class="btn btn-secondary mt-3" onclick="reiniciar()">Nuevo estudiante</button>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button class="btn btn-outline-primary" type="button" id="btnActualizarNota" onclick="actualizarNotaResultado()">🔄 Actualizar nota</button>
+      <button class="btn btn-secondary" onclick="reiniciar()">Nuevo estudiante</button>
+    </div>
     </div>
   </div>
 </section>
@@ -237,7 +244,7 @@
     <h3 class="h5">Resultados</h3>
     <div class="table-responsive">
     <table class="table table-bordered table-striped table-hover align-middle">
-      <thead><tr><th>Apellidos y nombres</th><th>Curso</th><th>Área</th><th>Par.</th><th>Aciertos</th><th>Desaciertos</th><th>Nota</th><th>Fecha</th><th>Examen</th></tr></thead>
+      <thead><tr><th>Apellidos y nombres</th><th>Curso</th><th>Área</th><th>Par.</th><th>Aciertos</th><th>Desaciertos</th><th>Nota /45</th><th>Fecha</th><th>Examen</th></tr></thead>
       <tbody id="tabla"></tbody>
     </table>
     </div>

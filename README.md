@@ -1,4 +1,4 @@
-# Evaluación en línea
+# EVALUACION FINAL
 
 Aplicación web para que estudiantes rindan evaluaciones en línea y el personal docente administre exámenes, revise resultados y descargue reportes. Se publica como sitio estático en GitHub Pages y utiliza Firebase Authentication y Cloud Firestore.
 
@@ -33,3 +33,5 @@ Después de publicar en GitHub Pages, comparte este enlace para abrir directamen
 `https://daniel-494847.github.io/guido-villagomez/?modo=estudiante`
 
 Las reglas permiten a estudiantes anónimos leer preguntas sin clave y enviar sus propias respuestas. Solo el personal autorizado puede leer las claves, las notas y los reportes. Los registros de un intento concluido no se pueden volver a leer por el estudiante.
+
+Para reducir escrituras en Firestore, las respuestas se guardan en el dispositivo (localStorage) mientras el estudiante avanza y se envían a la base de datos una sola vez, al finalizar la evaluación. La nota máxima es **45** y se calcula proporcionalmente a la cantidad de preguntas: `nota = aciertos × 45 / total de preguntas` (por ejemplo, 38 correctas de 50 → `34.2/45`). El docente la calcula al abrir su panel y el estudiante puede verla con **Consultar mi nota** desde el mismo dispositivo y navegador.

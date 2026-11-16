@@ -1,12 +1,12 @@
 /* =========================================================
-   app.js — Evaluación en línea con Firebase Firestore
+   app.js — EVALUACION FINAL con Firebase Firestore
    Colecciones:
      cursos       -> un documento por curso (Área, minutos, estado, preguntas)
      examenes     -> examen completo por curso (título, preguntas, respuestas y claves) [SOLO PERSONAL]
      pruebas      -> preguntas SIN la respuesta correcta [LEGIBLE POR ESTUDIANTES]
      claves       -> claves de calificación por curso (respuesta correcta de cada pregunta) [SOLO PERSONAL]
      estudiantes  -> registro del estudiante, clasificado por curso y Área
-     resultados   -> nota, aciertos y desaciertos de cada estudiante
+     resultados   -> nota sobre 45, aciertos y desaciertos de cada estudiante
    ========================================================= */
 
 // ---------- CONFIGURACIÓN ----------
@@ -20,6 +20,13 @@ const firebaseConfig = {
 };
 const PARALELOS = ["A", "B", "C"]; // Solo estos paralelos
 let paraleloCursosSeleccionado = "A";
+const NOTA_MAXIMA = 45; // Nota máxima que puede obtener un estudiante
+// Redondea la nota a un decimal y la muestra sin ceros innecesarios (34.2, 45)
+const redondearNota = valor => Math.round(Number(valor) * 10) / 10;
+const textoNota = valor => {
+  const v = redondearNota(valor);
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+};
 const CURSOS = [ // Solo Secundaria (cada curso aplica a todos sus paralelos A, B y C)
   "1ro de Secundaria", "2do de Secundaria", "3ro de Secundaria",
   "4to de Secundaria", "5to de Secundaria", "6to de Secundaria"
@@ -323,34 +330,14 @@ function pintarPreguntaActual() {
   pintarNavPreguntas();
 }
 
-// Al marcar una opción, la respuesta queda guardada de inmediato
+// Al marcar una opción solo se guarda en el dispositivo.
+// La base de datos se escribe una sola vez, al enviar la evaluación.
 async function preguntaRespondida(i, valor) {
   if (tiempoAgotado) return;
   borrador[i] = Number(valor);
   guardarBorrador();                     // persiste en localStorage
-  guardarBorradorEnFirestore();          // persiste en la base de datos
   pintarNavPreguntas();
   pintarPreguntaActual();                // muestra el badge "Respondida"
-}
-
-// Sube el borrador a Firestore (doc "borrador_<id>" en la colección respuestas)
-let subiendoBorrador = null;
-function guardarBorradorEnFirestore() {
-  if (!estudiante) return;
-  const datos = {
-    authUid: auth.currentUser ? auth.currentUser.uid : null,
-    estudianteId: estudiante.id,
-    cursoId: estudiante.cursoId,
-    paralelo: estudiante.paralelo,
-    respuestas: [...borrador],
-    indicePregunta,
-    actualizado: new Date().toISOString()
-  };
-  const ref = db.collection("respuestas").doc("borrador_" + estudiante.id);
-  subiendoBorrador = (subiendoBorrador || Promise.resolve())
-    .catch(() => { })
-    .then(() => ref.set(datos))
-    .finally(() => { subiendoBorrador = null; });
 }
 
 function preguntaMover(delta) {
@@ -358,7 +345,6 @@ function preguntaMover(delta) {
   const total = evaluacion.preguntas.length;
   indicePregunta = Math.min(total - 1, Math.max(0, indicePregunta + delta));
   guardarBorrador();
-  guardarBorradorEnFirestore();
   pintarPreguntaActual();
 }
 
@@ -368,7 +354,6 @@ function preguntaSaltar() {
   borrador[indicePregunta] = -1;   // desmarca cualquier opción elegida
   if (indicePregunta < evaluacion.preguntas.length - 1) indicePregunta++;
   guardarBorrador();
-  guardarBorradorEnFirestore();
   pintarPreguntaActual();
 }
 
@@ -386,7 +371,6 @@ function irAPregunta(i) {
   if (tiempoAgotado) return;
   indicePregunta = i;
   guardarBorrador();
-  guardarBorradorEnFirestore();
   bootstrap.Collapse.getOrCreateInstance($("panelPreguntas"), { toggle: false }).hide();
   pintarPreguntaActual();
 }
@@ -464,28 +448,8 @@ async function iniciar() {
     borrador = localValido
       ? [...borradorLocal.respuestas]
       : Array(totalPreguntas).fill(-1);
-    let indiceGuardado = localValido ? borradorLocal.indicePregunta : 0;
-
-    if (reg.exists) {
-      try {
-        const nube = await db.collection("respuestas").doc("borrador_" + id).get();
-        const datosNube = nube.exists ? nube.data() : null;
-        if (datosNube && Array.isArray(datosNube.respuestas) && datosNube.respuestas.length === totalPreguntas) {
-          const cant = arr => arr.filter(m => m >= 0).length;
-          const actualizadoNube = Date.parse(datosNube.actualizado || "");
-          const nubeMasReciente = !localValido ||
-            cant(datosNube.respuestas) > cant(borrador) ||
-            (cant(datosNube.respuestas) === cant(borrador) &&
-              Number.isFinite(actualizadoNube) && actualizadoNube > borradorLocal.actualizado);
-          if (nubeMasReciente) {
-            borrador = [...datosNube.respuestas];
-            indiceGuardado = Number.isInteger(datosNube.indicePregunta) ? datosNube.indicePregunta : 0;
-          }
-        }
-      } catch (e) { /* si no se puede leer la nube, se usa lo local */ }
-    } else {
-      borrarBorrador();
-    }
+    const indiceGuardado = localValido ? borradorLocal.indicePregunta : 0;
+    if (!reg.exists) borrarBorrador();
 
     indicePregunta = Number.isInteger(indiceGuardado) && indiceGuardado >= 0 && indiceGuardado < totalPreguntas
       ? indiceGuardado
@@ -510,7 +474,6 @@ async function iniciar() {
     }
 
     guardarBorrador();
-    guardarBorradorEnFirestore();
 
     const restante = c.minutos * 60 - Math.floor((Date.now() - inicio) / 1000);
     tiempoAgotado = restante <= 0;
@@ -629,7 +592,7 @@ async function guardarResultado(marcadas) {
         if (verificacion.code === "permission-denied") {
           borrarBorrador();
           try { localStorage.setItem("eval_rindio_" + estudiante.id, "1"); } catch (error) { }
-          pintarResultado(resultado, evaluacion, true);
+          pintarResultado(resultado, true);
           $("estadoGuardado").textContent = "La evaluación ya estaba registrada.";
           return;
         }
@@ -653,35 +616,112 @@ async function guardarResultado(marcadas) {
 
   borrarBorrador();
   try { localStorage.setItem("eval_rindio_" + estudiante.id, "1"); } catch (e) { }
-  await db.collection("respuestas").doc("borrador_" + estudiante.id).delete().catch(() => { });
-  pintarResultado(resultado, evaluacion, false);
+  pintarResultado(resultado, false);
   $("estadoGuardado").textContent = "✅ Resultado guardado.";
 }
 
-function pintarResultado(r, c, yaRindio) {
-  // El estudiante no ve su nota (la clave queda en el lado del personal):
-  // solo se confirma que sus respuestas fueron enviadas.
+function pintarResultado(r, yaRindio) {
+  // El estudiante no ve las preguntas ni las claves: solo su nota cuando el docente califica.
   $("notaFinal").textContent = "Enviada ✓";
-  $("nAciertos").textContent = "✓ Respuestas enviadas: " + r.respuestas.filter(m => m >= 0).length + " de " + r.total;
-  $("nDesaciertos").textContent = "Tu nota aparecerá en el reporte del administrador.";
+  $("mensajeNota").textContent = "Tu evaluación fue enviada. La nota aparecerá aquí en cuanto el docente la califique.";
+  $("nAciertos").textContent = `✔ ${r.respuestas.filter(m => m >= 0).length} de ${r.total} respuestas enviadas`;
+  $("nDesaciertos").textContent = "";
   $("estadoGuardado").textContent = yaRindio ? "Evaluación ya registrada." : "Guardando…";
-  $("revision").innerHTML = c.preguntas.map((q, i) => {
-    const m = r.respuestas[i];
-    return `<p><b>${i + 1}.</b> ${esc(q.p)}<br>
-      <span class="fw-semibold">Tu respuesta: ${m >= 0 ? esc(q.o[m]) : "Sin responder"}</span></p>`;
-  }).join("");
+  $("estadoNota").classList.add("d-none");
   $("paso1").classList.add("d-none");
   $("paso2").classList.add("d-none");
   $("paso3").classList.remove("d-none");
+  programarConsultaNota();
+  actualizarNotaResultado();
+}
+
+// La nota la calcula el docente; la pantalla se actualiza sola cuando está lista.
+let consultaNotaTimer = null, consultaNotaIntentos = 0;
+
+function programarConsultaNota() {
+  clearInterval(consultaNotaTimer);
+  consultaNotaIntentos = 0;
+  consultaNotaTimer = setInterval(() => {
+    if ($("paso3").classList.contains("d-none") || consultaNotaIntentos >= 30) {
+      clearInterval(consultaNotaTimer);
+      return;
+    }
+    consultaNotaIntentos++;
+    actualizarNotaResultado();
+  }, 20000);
+}
+
+async function actualizarNotaResultado() {
+  if (!estudiante) return;
+  try {
+    const documento = await db.collection("resultados").doc(estudiante.id).get();
+    if (documento.exists) mostrarNota(documento.data());
+  } catch (e) {
+    // Si falla la lectura, se reintenta con la siguiente actualización.
+  }
+}
+
+// Muestra la nota sobre 45 (p. ej. 34.2/45).
+function mostrarNota(r) {
+  if (!r.calificadoEn) {
+    $("notaFinal").textContent = "Enviada ✓";
+    $("mensajeNota").textContent = "Tu evaluación está enviada y pendiente de calificación. La nota aparecerá aquí automáticamente.";
+    return;
+  }
+  $("notaFinal").textContent = `${textoNota(r.nota)}/${NOTA_MAXIMA}`;
+  $("mensajeNota").textContent = "Nota obtenida:";
+  $("nAciertos").textContent = `✔ ${r.aciertos} aciertos`;
+  $("nDesaciertos").textContent = ` · ✘ ${r.desaciertos} desaciertos`;
+  $("estadoGuardado").textContent = "✅ Nota registrada por el docente.";
+  clearInterval(consultaNotaTimer);
+}
+
+// Consulta de nota desde la pantalla inicial (mismo dispositivo y navegador).
+async function consultarNota() {
+  const nombres = $("nombres").value.trim(), apellidos = $("apellidos").value.trim();
+  if (!nombres || !apellidos) return alert("Escribe tus nombres y apellidos.");
+
+  const caja = $("estadoNota");
+  caja.className = "alert alert-info mt-3 mb-0";
+  caja.textContent = "Consultando…";
+  caja.classList.remove("d-none");
+  try {
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    if (!auth.currentUser) await auth.signInAnonymously();
+    const id = `${cursoId($("curso").value)}_${slug(apellidos + " " + nombres)}`;
+    const documento = await db.collection("resultados").doc(id).get();
+    if (!documento.exists) {
+      caja.className = "alert alert-warning mt-3 mb-0";
+      caja.textContent = "No encontramos una evaluación enviada con estos datos. Revisa el curso, los nombres y apellidos.";
+      return;
+    }
+    const r = documento.data();
+    if (!r.calificadoEn) {
+      caja.className = "alert alert-info mt-3 mb-0";
+      caja.textContent = "Tu evaluación ya fue enviada y está pendiente de calificación. Vuelve a consultar más tarde.";
+      return;
+    }
+    caja.className = "alert alert-success mt-3 mb-0";
+    caja.innerHTML = `🎓 <b>Nota: ${textoNota(r.nota)}/${NOTA_MAXIMA}</b><br>
+      <span class="text-success fw-semibold">✔ ${r.aciertos} aciertos</span> ·
+      <span class="text-danger fw-semibold">✘ ${r.desaciertos} desaciertos</span>`;
+  } catch (e) {
+    caja.className = "alert alert-warning mt-3 mb-0";
+    caja.textContent = e.code === "permission-denied"
+      ? "Por seguridad, la nota solo se puede consultar desde el mismo dispositivo y navegador donde se envió la evaluación."
+      : "No se pudo consultar la nota: " + e.message;
+  }
 }
 
 function reiniciar() {
   clearInterval(timer);
+  clearInterval(consultaNotaTimer);
   enviando = false;
   tiempoAgotado = false;
   finEvaluacion = null;
   $("estadoEnvio").classList.add("d-none");
   $("estadoEnvio").classList.remove("d-flex");
+  $("estadoNota").classList.add("d-none");
   $("nombres").value = ""; $("apellidos").value = "";
   $("paso3").classList.add("d-none");
   $("paso1").classList.remove("d-none");
@@ -769,9 +809,11 @@ function preguntasEnOrdenDeResultado(preguntas, resultado) {
 }
 
 // El administrador calcula las notas usando las claves privadas de "examenes".
+// La nota máxima es 45 y se reparte proporcionalmente entre las preguntas:
+// nota = aciertos * 45 / cantidad de preguntas (p. ej. 38 de 50 -> 34.2/45).
 async function calificarPendientes() {
   const pendientes = (await leerResultados()).filter(resultado =>
-    Number(resultado.nota) === 0 && !resultado.calificadoEn
+    !resultado.calificadoEn || resultado.escala !== String(NOTA_MAXIMA)
   );
   let batch = db.batch(), cambios = 0, enLote = 0;
   for (const resultado of pendientes) {
@@ -789,11 +831,15 @@ async function calificarPendientes() {
     const respuestas = resultado.respuestas || [];
     const correctas = preguntas.map((pregunta, indice) => respuestas[indice] === pregunta.c);
     const aciertos = correctas.filter(Boolean).length;
+    const nota = preguntas.length ? redondearNota((aciertos / preguntas.length) * NOTA_MAXIMA) : 0;
     batch.update(db.collection("resultados").doc(resultado.id), {
       correctas,
       aciertos,
       desaciertos: preguntas.length - aciertos,
-      nota: Math.round((aciertos / preguntas.length) * 100),
+      total: preguntas.length,
+      nota,
+      notaMaxima: NOTA_MAXIMA,
+      escala: String(NOTA_MAXIMA),
       calificadoEn: new Date().toISOString()
     });
     cambios++;
@@ -1001,12 +1047,14 @@ async function guardarPreguntas() {
 /* ---------- Reporte en pantalla ---------- */
 let graficos = {};
 
-// Calcula totales, promedio y aciertos/desaciertos por pregunta
+// Calcula totales, promedio y aciertos/desaciertos por pregunta.
+// El promedio está en la escala de la nota máxima (45).
 function stats(lista) {
   const n = lista.length;
-  const aciertos = lista.reduce((s, r) => s + r.aciertos, 0);
-  const desaciertos = lista.reduce((s, r) => s + r.desaciertos, 0);
-  const promedio = n ? Math.round(lista.reduce((s, r) => s + r.nota, 0) / n) : 0;
+  const aciertos = lista.reduce((s, r) => s + (Number(r.aciertos) || 0), 0);
+  const desaciertos = lista.reduce((s, r) => s + (Number(r.desaciertos) || 0), 0);
+  const sumaNotas = lista.reduce((s, r) => s + (Number(r.nota) || 0), 0);
+  const promedio = n ? redondearNota(sumaNotas / n) : 0;
   const nPreg = Math.max(0, ...lista.map(r => (r.correctas || []).length));
   const pa = Array(nPreg).fill(0), pd = Array(nPreg).fill(0);
   lista.forEach(r => (r.correctas || []).forEach((ok, i) => ok ? pa[i]++ : pd[i]++));
@@ -1092,7 +1140,7 @@ function reporte() {
   const fc = $("fCurso").value, fp = $("fParalelo").value;
   const lista = RESULTADOS.filter(r => (!fc || r.cursoId === fc) && (!fp || r.paralelo === fp));
   const s = stats(lista);
-  $("resumen").textContent = `${s.n} evaluaciones · Promedio: ${s.promedio}/100`;
+  $("resumen").textContent = `${s.n} evaluaciones · Promedio: ${textoNota(s.promedio)}/${NOTA_MAXIMA}`;
 
   PARALELOS.forEach(paralelo => {
     const estadisticasParalelo = stats(lista.filter(r => r.paralelo === paralelo));
@@ -1101,7 +1149,7 @@ function reporte() {
 
   $("tabla").innerHTML = [...lista].sort(compararNomina).map(r => `
     <tr><td>${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(r.curso)}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
-    <td class="text-success fw-semibold">${r.aciertos}</td><td class="text-danger fw-semibold">${r.desaciertos}</td><td>${r.nota}</td>
+    <td class="text-success fw-semibold">${r.aciertos}</td><td class="text-danger fw-semibold">${r.desaciertos}</td><td>${r.calificadoEn ? `${textoNota(r.nota)}/${NOTA_MAXIMA}` : "Pendiente"}</td>
     <td>${new Date(r.fecha).toLocaleString("es-BO")}</td>
     <td><button class="btn btn-sm btn-primary" onclick="descargarExamenEstudiante('${esc(r.id)}')">⬇ PDF</button></td></tr>`).join("");
 }
@@ -1148,7 +1196,7 @@ async function descargarExamenEstudiante(id) {
 
   escribir("Examen y resultado del estudiante", 15, 16, true, true);
   escribir(`${r.apellidos} ${r.nombres} · ${r.curso} "${r.paralelo}" · ${r.area}`, 15, 10, false);
-  escribir(`Aciertos: ${r.aciertos} · Desaciertos: ${r.desaciertos} · Nota: ${r.nota}/100`, 15, 11, true);
+  escribir(`Aciertos: ${r.aciertos} · Desaciertos: ${r.desaciertos} · Nota: ${textoNota(r.nota)}/${NOTA_MAXIMA}`, 15, 11, true);
   escribir(`Fecha: ${new Date(r.fecha).toLocaleString("es-BO")}`, 15, 9, false);
   if (!preguntas.some(pregunta => Number.isInteger(pregunta.c))) {
     escribir("Aviso: el examen disponible no conserva las claves de respuesta.", 15, 9, false);
@@ -1200,7 +1248,7 @@ async function descargarInformeCurso(id) {
       ["Respuestas contabilizadas", total],
       ["Aciertos", `${s.aciertos} (${porcentaje(s.aciertos)})`],
       ["Desaciertos", `${s.desaciertos} (${porcentaje(s.desaciertos)})`],
-      ["Promedio de notas", `${s.promedio}/100`]
+      ["Promedio de notas", `${textoNota(s.promedio)}/${NOTA_MAXIMA}`]
     ]);
 
     if (s.n) {
@@ -1224,7 +1272,7 @@ async function descargarInformeCurso(id) {
           paraleloStats.n,
           `${paraleloStats.aciertos} (${porcentajeParalelo(paraleloStats.aciertos)})`,
           `${paraleloStats.desaciertos} (${porcentajeParalelo(paraleloStats.desaciertos)})`,
-          `${paraleloStats.promedio}/100`
+          `${textoNota(paraleloStats.promedio)}/${NOTA_MAXIMA}`
         ];
       });
       y = tabla(doc, y, ["Paralelo", "Eval.", "Aciertos", "Desaciertos", "Promedio"], [28, 24, 42, 48, 38], filasParalelos) + 8;
@@ -1235,8 +1283,8 @@ async function descargarInformeCurso(id) {
       y += 5;
       const estudiantes = [...lista]
         .sort(compararNomina)
-        .map(r => [r.apellidos + " " + r.nombres, r.paralelo, r.aciertos, r.desaciertos, `${r.nota}/100`]);
-      tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota"], [65, 20, 30, 30, 35], estudiantes);
+        .map(r => [r.apellidos + " " + r.nombres, r.paralelo, r.aciertos, r.desaciertos, `${textoNota(r.nota)}/${NOTA_MAXIMA}`]);
+      tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota /45"], [65, 20, 30, 30, 35], estudiantes);
     } else {
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
       doc.text(`Aún no hay evaluaciones registradas para el paralelo ${paralelo}.`, 15, y + 8);
@@ -1318,7 +1366,7 @@ async function generarPDF(ids, archivo, titulo, paralelo) {
 
   const filas = ids.map(id => {
     const c = CACHE[id], s = stats(porParalelo(id));
-    return [c.nombre, c.area, s.n, s.promedio + "/100", s.aciertos, s.desaciertos];
+    return [c.nombre, c.area, s.n, `${textoNota(s.promedio)}/${NOTA_MAXIMA}`, s.aciertos, s.desaciertos];
   });
   y = tabla(doc, y, ["Curso", "Área", "Estud.", "Promedio", "Aciertos", "Desaciertos"], [40, 35, 22, 27, 27, 28], filas);
 
@@ -1337,7 +1385,7 @@ async function generarPDF(ids, archivo, titulo, paralelo) {
     if (y + 80 > 275) { doc.addPage(); y = 20; }
     const img = imagenGrafico("bar", {
       labels: conDatos.map(id => CACHE[id].nombre),
-      datasets: [{ label: "Promedio (sobre 100)", data: conDatos.map(id => stats(porParalelo(id)).promedio), backgroundColor: "#1d4ed8" }]
+      datasets: [{ label: `Promedio (sobre ${NOTA_MAXIMA})`, data: conDatos.map(id => stats(porParalelo(id)).promedio), backgroundColor: "#1d4ed8" }]
     }, 850, 350);
     doc.addImage(img, "PNG", 15, y + 4, 170, 70);
     y += 80;
@@ -1350,7 +1398,7 @@ async function generarPDF(ids, archivo, titulo, paralelo) {
     doc.setFontSize(14); doc.setFont("helvetica", "bold");
     doc.text(`${c.nombre} - ${c.area} - PARALELO ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text(`Estudiantes: ${s.n}   Promedio: ${s.promedio}/100   Aciertos: ${s.aciertos}   Desaciertos: ${s.desaciertos}`, 15, y); y += 8;
+    doc.text(`Estudiantes: ${s.n}   Promedio: ${textoNota(s.promedio)}/${NOTA_MAXIMA}   Aciertos: ${s.aciertos}   Desaciertos: ${s.desaciertos}`, 15, y); y += 8;
     if (!s.n) { doc.text("Sin resultados.", 15, y); return; }
 
     doc.setFontSize(10); doc.setFont("helvetica", "bold");
@@ -1365,8 +1413,8 @@ async function generarPDF(ids, archivo, titulo, paralelo) {
     doc.setFontSize(11); doc.setFont("helvetica", "bold");
     doc.text("RESULTADOS POR ESTUDIANTE", doc.internal.pageSize.getWidth() / 2, y, { align: "center" }); y += 7;
     const orden = [...lista].sort(compararNomina);
-    tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota"], [65, 20, 30, 30, 35],
-      orden.map(r => [r.apellidos + " " + r.nombres, r.paralelo, r.aciertos, r.desaciertos, r.nota]));
+    tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota /45"], [65, 20, 30, 30, 35],
+      orden.map(r => [r.apellidos + " " + r.nombres, r.paralelo, r.aciertos, r.desaciertos, `${textoNota(r.nota)}/${NOTA_MAXIMA}`]));
   });
 
   doc.save(archivo);
