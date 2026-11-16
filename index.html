@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>EVALUACION FINAL 2026</title>
 <meta name="description" content="Plataforma de evaluación en línea de la Unidad Educativa Guido Villagómez. Los estudiantes pueden rendir evaluaciones y el personal docente gestionar exámenes y resultados.">
 <meta property="og:type" content="website">
@@ -18,8 +18,66 @@
 <meta name="twitter:description" content="Plataforma de evaluación en línea de la Unidad Educativa Guido Villagómez. Los estudiantes pueden rendir evaluaciones y el personal docente gestionar exámenes y resultados.">
 <meta name="twitter:image" content="https://daniel-494847.github.io/guido-villagomez/escudo.webp">
 <meta name="twitter:image:alt" content="Escudo de la Unidad Educativa Guido Villagómez">
-<link rel="icon" type="image/webp" href="/logo.webp">
+<link rel="icon" type="image/webp" href="./escudo.webp">
+<link rel="apple-touch-icon" href="./escudo.webp">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<style>
+  /* ===== Pantalla de evaluación responsiva ===== */
+  /* Alto real del móvil (evita que la barra del navegador tape los botones) */
+  #paso2 {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+  #paso2 .card-body {
+    min-height: 0;
+    padding-bottom: max(2.5rem, calc(1rem + env(safe-area-inset-bottom, 0px))) !important;
+  }
+  /* La pregunta se desplaza dentro de su espacio y no empuja los botones */
+  #preguntaActual {
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  /* Panel de números: scroll propio para no ocupar toda la pantalla */
+  #panelPreguntas {
+    max-height: 35dvh;
+    overflow-y: auto;
+  }
+  @media (max-width: 575.98px) {
+    #paso2 .card-body {
+      gap: 0.4rem !important;
+    }
+    /* Botones más grandes y cómodos al tocar */
+    #paso2 .btn {
+      padding: 0.6rem 0.4rem;
+      font-size: 0.95rem;
+    }
+    #contadorRespondidas {
+      font-size: 0.72rem;
+    }
+    #preguntaActual .form-check {
+      padding-top: 0.6rem !important;
+      padding-bottom: 0.6rem !important;
+    }
+  }
+  /* Móviles en horizontal o pantallas muy bajas */
+  @media (max-height: 520px) {
+    #paso2 .card-body {
+      gap: 0.25rem !important;
+      padding-top: 0.35rem !important;
+      padding-bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px))) !important;
+    }
+    #paso2 .btn {
+      padding: 0.35rem 0.4rem;
+      font-size: 0.85rem;
+    }
+    #panelPreguntas {
+      max-height: 45dvh;
+    }
+  }
+</style>
 </head>
 <body class="bg-body-tertiary">
 
@@ -66,7 +124,7 @@
   </div>
 
   <!-- Paso 2: evaluación tipo Quizizz (una pregunta a la vez) -->
-  <div class="card d-none position-fixed top-0 start-0 w-100 vh-100 rounded-0 overflow-hidden z-3" id="paso2">
+  <div class="card d-none position-fixed top-0 start-0 w-100 rounded-0 overflow-hidden z-3" id="paso2">
     <div class="card-body d-flex flex-column h-100 gap-2 p-2 p-sm-3 overflow-hidden">
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
       <div class="border border-2 border-primary rounded px-2 py-1 text-center small fw-bold text-primary text-nowrap" id="reloj"></div>
