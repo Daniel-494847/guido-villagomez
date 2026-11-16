@@ -27,6 +27,70 @@ const textoNota = valor => {
   const v = redondearNota(valor);
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 };
+
+// Calcula la nota con las claves del curso (solo se usan después de enviar la evaluación).
+// "respuestas" está en el orden en que el estudiante vio las preguntas y "orden" indica
+// el índice original de cada pregunta en el examen.
+function calcularNotaConClaves(respuestas, orden, claves) {
+  const total = Array.isArray(respuestas) ? respuestas.length : 0;
+  let aciertos = 0;
+  const correctas = [];
+  for (let i = 0; i < total; i++) {
+    const base = Array.isArray(orden) && Number.isInteger(orden[i]) ? orden[i] : i;
+    const ok = Number.isInteger(respuestas[i]) && respuestas[i] === claves[base];
+    correctas.push(ok);
+    if (ok) aciertos++;
+  }
+  return {
+    aciertos,
+    desaciertos: total - aciertos,
+    total,
+    nota: total ? redondearNota((aciertos / total) * NOTA_MAXIMA) : 0,
+    correctas
+  };
+}
+
+// Desbloquea las claves del curso para este estudiante (una sola vez, después del envío).
+async function obtenerClavesCurso(resultado) {
+  const user = auth.currentUser;
+  if (!user || !resultado || !resultado.cursoId) return null;
+
+  const desbloqueoId = user.uid;
+  const ref = db.collection("desbloqueos").doc(resultado.cursoId).collection("estudiantes").doc(desbloqueoId);
+  let snap;
+  try {
+    snap = await ref.get();
+  } catch (e) {
+    return null;
+  }
+  if (!snap.exists) {
+    try {
+      await ref.set({
+        authUid: user.uid,
+        cursoId: resultado.cursoId,
+        resultadoId: resultado.id,
+        creadoEn: new Date().toISOString()
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  try {
+    const sol = await db.collection("soluciones").doc(resultado.cursoId).get();
+    if (!sol.exists) return null;
+    const claves = sol.data().claves;
+    return Array.isArray(claves) ? claves : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function obtenerNotaLocal(resultado) {
+  const claves = await obtenerClavesCurso(resultado);
+  if (!claves) return null;
+  return calcularNotaConClaves(resultado.respuestas || [], resultado.preguntasOrden, claves);
+}
 const CURSOS = [ // Solo Secundaria (cada curso aplica a todos sus paralelos A, B y C)
   "1ro de Secundaria", "2do de Secundaria", "3ro de Secundaria",
   "4to de Secundaria", "5to de Secundaria", "6to de Secundaria"
@@ -122,6 +186,12 @@ async function crearColecciones() {
       batch.set(db.collection("cursos").doc(cursoId(nombre)), datos);
       batch.set(db.collection("pruebas").doc(cursoId(nombre)), { cursoId: cursoId(nombre), titulo: datos.titulo, preguntas: publicarSinClave(PREGUNTAS_EJEMPLO) });
       batch.set(db.collection("examenes").doc(cursoId(nombre)), examenDe(cursoId(nombre), datos.titulo, PREGUNTAS_EJEMPLO));
+      batch.set(db.collection("soluciones").doc(cursoId(nombre)), {
+        cursoId: cursoId(nombre),
+        claves: PREGUNTAS_EJEMPLO.map(p => Number(p.c)),
+        total: PREGUNTAS_EJEMPLO.length,
+        actualizado: new Date().toISOString()
+      });
       CACHE[cursoId(nombre)] = datos;
     });
     await batch.commit();
@@ -480,7 +550,7 @@ async function iniciar() {
 
     // Muestra la prueba asignada al curso, una pregunta a la vez (estilo Quizizz)
     $("tituloEval").textContent = c.titulo;
-    $("datosEst").textContent = `${apellidos} ${nombres} · ${c.nombre} "${paralelo}" · Área: ${c.area}`;
+    $("datosEst").textContent = `${apellidos} ${nombres} · ${c.nombre} "${paralelo}"`;
     pintarPreguntaActual();
     pintarNavPreguntas();
     $("paso1").classList.add("d-none");
@@ -621,9 +691,9 @@ async function guardarResultado(marcadas) {
 }
 
 function pintarResultado(r, yaRindio) {
-  // El estudiante no ve las preguntas ni las claves: solo su nota cuando el docente califica.
-  $("notaFinal").textContent = "Enviada ✓";
-  $("mensajeNota").textContent = "Tu evaluación fue enviada. La nota aparecerá aquí en cuanto el docente la califique.";
+  // El estudiante no ve las preguntas ni las claves: solo su nota.
+  $("notaFinal").textContent = "…";
+  $("mensajeNota").textContent = "Calculando tu nota…";
   $("nAciertos").textContent = `✔ ${r.respuestas.filter(m => m >= 0).length} de ${r.total} respuestas enviadas`;
   $("nDesaciertos").textContent = "";
   $("estadoGuardado").textContent = yaRindio ? "Evaluación ya registrada." : "Guardando…";
@@ -651,21 +721,34 @@ function programarConsultaNota() {
   }, 20000);
 }
 
-async function actualizarNotaResultado() {
+async function actualizarNotaResultado(manual = false) {
   if (!estudiante) return;
+  const boton = $("btnActualizarNota");
+  const textoBoton = boton ? boton.textContent : "";
+  if (manual && boton) { boton.disabled = true; boton.textContent = "🔄 Actualizando…"; }
   try {
     const documento = await db.collection("resultados").doc(estudiante.id).get();
-    if (documento.exists) mostrarNota(documento.data());
+    if (!documento.exists) return;
+    const r = { ...documento.data(), id: documento.id };
+    if (r.calificadoEn && r.escala === String(NOTA_MAXIMA)) {
+      mostrarNota(r);
+      return;
+    }
+    const local = await obtenerNotaLocal(r);
+    if (local) mostrarNotaCalculada(local);
+    else mostrarNota(r);
   } catch (e) {
-    // Si falla la lectura, se reintenta con la siguiente actualización.
+    // Si falla la lectura, se conserva la información y se reintenta al pulsar de nuevo.
+  } finally {
+    if (manual && boton) { boton.disabled = false; boton.textContent = textoBoton || "🔄 Actualizar nota"; }
   }
 }
 
-// Muestra la nota sobre 45 (p. ej. 34.2/45).
+// Muestra la nota oficial ya registrada por el docente.
 function mostrarNota(r) {
-  if (!r.calificadoEn) {
+  if (!r.calificadoEn || r.escala !== String(NOTA_MAXIMA)) {
     $("notaFinal").textContent = "Enviada ✓";
-    $("mensajeNota").textContent = "Tu evaluación está enviada y pendiente de calificación. La nota aparecerá aquí automáticamente.";
+    $("mensajeNota").textContent = "Tu evaluación está enviada y pendiente de calificación. La nota aparecerá aquí cuando esté disponible.";
     return;
   }
   $("notaFinal").textContent = `${textoNota(r.nota)}/${NOTA_MAXIMA}`;
@@ -674,6 +757,31 @@ function mostrarNota(r) {
   $("nDesaciertos").textContent = ` · ✘ ${r.desaciertos} desaciertos`;
   $("estadoGuardado").textContent = "✅ Nota registrada por el docente.";
   clearInterval(consultaNotaTimer);
+}
+
+// Muestra la nota calculada en el navegador con las claves desbloqueadas tras el envío.
+function mostrarNotaCalculada(local) {
+  $("notaFinal").textContent = `${textoNota(local.nota)}/${NOTA_MAXIMA}`;
+  $("mensajeNota").textContent = "Nota obtenida:";
+  $("nAciertos").textContent = `✔ ${local.aciertos} aciertos`;
+  $("nDesaciertos").textContent = ` · ✘ ${local.desaciertos} desaciertos`;
+  $("estadoGuardado").textContent = "✅ Nota calculada. El docente registrará la calificación oficial.";
+}
+
+// Recupera la sesión anónima guardada antes de crear una nueva.
+async function sesionAnonima() {
+  await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+  if (auth.currentUser) return auth.currentUser;
+  await new Promise(resolve => {
+    let listo = false;
+    const terminar = () => { if (!listo) { listo = true; resolve(); } };
+    const unsub = auth.onAuthStateChanged(user => {
+      if (user) { unsub(); terminar(); }
+    });
+    setTimeout(() => { unsub(); terminar(); }, 1500);
+  });
+  if (auth.currentUser) return auth.currentUser;
+  return (await auth.signInAnonymously()).user;
 }
 
 // Consulta de nota desde la pantalla inicial (mismo dispositivo y navegador).
@@ -686,8 +794,7 @@ async function consultarNota() {
   caja.textContent = "Consultando…";
   caja.classList.remove("d-none");
   try {
-    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    if (!auth.currentUser) await auth.signInAnonymously();
+    await sesionAnonima();
     const id = `${cursoId($("curso").value)}_${slug(apellidos + " " + nombres)}`;
     const documento = await db.collection("resultados").doc(id).get();
     if (!documento.exists) {
@@ -695,16 +802,25 @@ async function consultarNota() {
       caja.textContent = "No encontramos una evaluación enviada con estos datos. Revisa el curso, los nombres y apellidos.";
       return;
     }
-    const r = documento.data();
-    if (!r.calificadoEn) {
-      caja.className = "alert alert-info mt-3 mb-0";
-      caja.textContent = "Tu evaluación ya fue enviada y está pendiente de calificación. Vuelve a consultar más tarde.";
+    const r = { ...documento.data(), id: documento.id };
+    if (r.calificadoEn && r.escala === String(NOTA_MAXIMA)) {
+      caja.className = "alert alert-success mt-3 mb-0";
+      caja.innerHTML = `🎓 <b>Nota: ${textoNota(r.nota)}/${NOTA_MAXIMA}</b><br>
+        <span class="text-success fw-semibold">✔ ${r.aciertos} aciertos</span> ·
+        <span class="text-danger fw-semibold">✘ ${r.desaciertos} desaciertos</span>`;
       return;
     }
-    caja.className = "alert alert-success mt-3 mb-0";
-    caja.innerHTML = `🎓 <b>Nota: ${textoNota(r.nota)}/${NOTA_MAXIMA}</b><br>
-      <span class="text-success fw-semibold">✔ ${r.aciertos} aciertos</span> ·
-      <span class="text-danger fw-semibold">✘ ${r.desaciertos} desaciertos</span>`;
+    const local = await obtenerNotaLocal(r);
+    if (local) {
+      caja.className = "alert alert-success mt-3 mb-0";
+      caja.innerHTML = `🎓 <b>Nota: ${textoNota(local.nota)}/${NOTA_MAXIMA}</b><br>
+        <span class="text-success fw-semibold">✔ ${local.aciertos} aciertos</span> ·
+        <span class="text-danger fw-semibold">✘ ${local.desaciertos} desaciertos</span><br>
+        <span class="small text-secondary">El docente registrará la calificación oficial.</span>`;
+      return;
+    }
+    caja.className = "alert alert-info mt-3 mb-0";
+    caja.textContent = "Tu evaluación ya fue enviada y está pendiente de calificación. Vuelve a consultar más tarde.";
   } catch (e) {
     caja.className = "alert alert-warning mt-3 mb-0";
     caja.textContent = e.code === "permission-denied"
@@ -755,6 +871,11 @@ async function cargarAdmin() {
     }
     etapa = "leer conteos de exámenes";
     await cargarCantidadPreguntas();
+    etapa = "preparar claves de calificación";
+    const clavesCreadas = await asegurarSoluciones();
+    $("estadoClaves").textContent = clavesCreadas
+      ? `🔑 Claves de calificación preparadas para ${clavesCreadas} curso(s).`
+      : "";
     etapa = "recalificar resultados pendientes";
     await calificarPendientes();
     etapa = "leer resultados";
@@ -781,6 +902,33 @@ async function cargarCantidadPreguntas() {
         : Array.isArray(examen.preguntas) ? examen.preguntas.length : 0
       : 0;
   }));
+}
+
+// Crea las claves de calificación que falten (solo administrador).
+async function asegurarSoluciones() {
+  if (rolPersonal !== "admin") return 0;
+  let creadas = 0;
+  for (const nombre of CURSOS) {
+    const id = cursoId(nombre);
+    try {
+      const sol = await db.collection("soluciones").doc(id).get();
+      if (sol.exists) continue;
+      const examen = await db.collection("examenes").doc(id).get();
+      if (!examen.exists) continue;
+      const preguntas = examen.data().preguntas || [];
+      if (!preguntas.length) continue;
+      await db.collection("soluciones").doc(id).set({
+        cursoId: id,
+        claves: preguntas.map(p => Number(p.c)),
+        total: preguntas.length,
+        actualizado: new Date().toISOString()
+      });
+      creadas++;
+    } catch (e) {
+      // Se reintenta la próxima vez que se abra el panel.
+    }
+  }
+  return creadas;
 }
 
 function preguntasEnOrdenDeResultado(preguntas, resultado) {
@@ -874,22 +1022,32 @@ function pintarCursos() {
     if (!c) return "";
     const cant = porCurso(id).filter(r => r.paralelo === paraleloCursosSeleccionado).length;
     const cantidadPreguntas = Number.isInteger(c.cantidadPreguntas) ? c.cantidadPreguntas : "sin dato";
+    const acciones = [];
+    if (esAdmin) {
+      acciones.push(`<button class="btn btn-sm btn-primary" title="Guardar área y tiempo" onclick="guardarFila('${id}')">Guardar</button>`);
+      acciones.push(`<button class="btn btn-sm btn-secondary" title="Editar las preguntas del examen" onclick="editarPreguntas('${id}')">Preguntas (${cantidadPreguntas})</button>`);
+      acciones.push(`<button class="btn btn-sm btn-danger" title="Depurar resultados del paralelo ${paraleloCursosSeleccionado}" onclick="eliminarRegistrosCurso('${id}', '${paraleloCursosSeleccionado}')">Depurar</button>`);
+    }
+    acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>`);
+    if (c.activo) {
+      if (esAdmin) acciones.push(`<button class="btn btn-sm btn-danger" title="Concluir evaluación" onclick="alternarEstado('${id}')">Concluir</button>`);
+    } else {
+      if (esAdmin) acciones.push(`<button class="btn btn-sm btn-success" title="Reabrir evaluación" onclick="alternarEstado('${id}')">Reabrir</button>`);
+      acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar informe en PDF" onclick="descargarPDF('${id}')">⬇ PDF</button>`);
+    }
     return `<tr>
       <td>${esc(c.nombre || nombre)}</td>
       <td><select class="form-select form-select-sm" id="ar_${id}" ${esAdmin ? "" : "disabled"}>${AREAS.map(a => `<option ${a === c.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></td>
-      <td><input class="form-control form-control-sm w-auto" type="number" min="1" id="mi_${id}" value="${Number(c.minutos) || 30}" ${esAdmin ? "" : "disabled"}> min</td>
-      <td>${c.activo ? "🟢 Activa" : "🔒 Concluida"}</td>
-      <td>${cant}</td>
-      <td>
-        ${esAdmin ? `<button class="btn btn-sm btn-primary me-1 mb-1" onclick="guardarFila('${id}')">Guardar</button>
-        <button class="btn btn-sm btn-secondary me-1 mb-1" onclick="editarPreguntas('${id}')">Editar preguntas (${cantidadPreguntas})</button>
-        <button class="btn btn-sm btn-danger me-1 mb-1" onclick="eliminarRegistrosCurso('${id}', '${paraleloCursosSeleccionado}')">Depurar lista</button>` : ""}
-        <button class="btn btn-sm btn-primary px-2 py-1 me-1 mb-1" title="Reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>
-        ${c.activo
-          ? (esAdmin ? `<button class="btn btn-sm btn-danger me-1 mb-1" onclick="alternarEstado('${id}')">Concluir</button>` : "")
-          : `${esAdmin ? `<button class="btn btn-sm btn-success me-1 mb-1" onclick="alternarEstado('${id}')">Reabrir</button>` : ""}
-             <button class="btn btn-sm btn-primary px-2 py-1 me-1 mb-1" title="Descargar informe en PDF" onclick="descargarPDF('${id}')">⬇ PDF</button>`}
-      </td></tr>`;
+      <td class="col-tiempo">
+        <div class="d-flex align-items-center gap-1">
+          <input class="form-control form-control-sm input-minutos" type="number" min="1" inputmode="numeric" id="mi_${id}" value="${Number(c.minutos) || 30}" ${esAdmin ? "" : "disabled"}>
+          <span class="unidad-min">min</span>
+        </div>
+      </td>
+      <td class="text-nowrap">${c.activo ? "🟢 Activa" : "🔒 Concluida"}</td>
+      <td class="text-center">${cant}</td>
+      <td><div class="acciones-curso">${acciones.join("")}</div></td>
+    </tr>`;
   }).join("");
   if (!$("tablaCursos").innerHTML) $("tablaCursos").innerHTML = "<tr><td colspan='6'>No hay cursos disponibles.</td></tr>";
 }
@@ -1491,6 +1649,12 @@ async function guardarExamenEnBD(id, titulo, preguntas) {
     titulo,
     cantidad: examen.cantidad,
     preguntas: publicarSinClave(examen.preguntas),
+    actualizado: examen.actualizado
+  });
+  await db.collection("soluciones").doc(id).set({
+    cursoId: id,
+    claves: examen.preguntas.map(p => Number(p.c)),
+    total: examen.cantidad,
     actualizado: examen.actualizado
   });
   await db.collection("cursos").doc(id).update({

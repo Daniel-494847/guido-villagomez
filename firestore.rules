@@ -44,6 +44,28 @@ service cloud.firestore {
       allow write: if esAdministrador();
     }
 
+    // Claves de calificación: el personal, o el estudiante que ya envió su evaluación.
+    match /soluciones/{cursoId} {
+      allow get: if esPersonal() ||
+        (esAnonimo() &&
+          exists(/databases/$(database)/documents/desbloqueos/$(cursoId)/estudiantes/$(request.auth.uid)));
+      allow list: if esPersonal();
+      allow write: if esAdministrador();
+    }
+
+    // Marca de desbloqueo: se crea una sola vez, después de enviar la evaluación.
+    match /desbloqueos/{cursoId}/estudiantes/{uid} {
+      allow get: if esPersonal() || (esAnonimo() && uid == request.auth.uid);
+      allow create: if esAnonimo() && uid == request.auth.uid &&
+        request.resource.data.authUid == request.auth.uid &&
+        request.resource.data.cursoId == cursoId &&
+        request.resource.data.resultadoId is string &&
+        exists(/databases/$(database)/documents/resultados/$(request.resource.data.resultadoId)) &&
+        get(/databases/$(database)/documents/resultados/$(request.resource.data.resultadoId)).data.authUid == request.auth.uid &&
+        get(/databases/$(database)/documents/resultados/$(request.resource.data.resultadoId)).data.cursoId == cursoId;
+      allow update, delete: if esAdministrador();
+    }
+
     // Exámenes completos y claves solo para el personal autenticado.
     match /examenes/{cursoId} {
       allow read, write: if esPersonal();
