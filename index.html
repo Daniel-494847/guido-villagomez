@@ -74,59 +74,6 @@
       padding-bottom: 0.6rem !important;
     }
   }
-  /* ===== Panel administrador: tabla compacta y responsiva ===== */
-  #tablaCursos .col-tiempo {
-    width: 1%;
-    white-space: nowrap;
-    padding-left: 0.3rem;
-    padding-right: 0.3rem;
-  }
-  #tablaCursos .input-minutos {
-    width: 2.6rem;
-    min-width: 2.6rem;
-    padding: 0.12rem 0.1rem;
-    text-align: center;
-    font-size: 0.78rem;
-    appearance: textfield;
-    -moz-appearance: textfield;
-  }
-  #tablaCursos .input-minutos::-webkit-outer-spin-button,
-  #tablaCursos .input-minutos::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  #tablaCursos .unidad-min {
-    font-size: 0.65rem;
-    color: var(--bs-secondary-color);
-  }
-  /* Botones de acciones muy compactos */
-  .acciones-curso {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.18rem;
-  }
-  .acciones-curso .btn {
-    --bs-btn-padding-y: 0.08rem;
-    --bs-btn-padding-x: 0.3rem;
-    --bs-btn-font-size: 0.68rem;
-    --bs-btn-line-height: 1.15;
-    --bs-btn-border-radius: 0.25rem;
-    white-space: nowrap;
-  }
-  @media (max-width: 767.98px) {
-    #tablaCursos {
-      font-size: 0.82rem;
-    }
-    #tablaCursos .form-select-sm,
-    #tablaCursos .form-control-sm {
-      font-size: 0.78rem;
-      padding: 0.2rem 0.35rem;
-    }
-    .acciones-curso .btn {
-      --bs-btn-font-size: 0.66rem;
-      --bs-btn-padding-x: 0.26rem;
-    }
-  }
   /* Móviles en horizontal o pantallas muy bajas */
   @media (max-height: 520px) {
     #paso2 .card-body {
@@ -290,10 +237,19 @@
     <p class="small text-secondary">La evaluación y su duración se comparten por curso; los resultados se muestran por paralelo.</p>
     <p class="small text-success mb-2" id="estadoClaves"></p>
     <div class="table-responsive">
-    <table class="table table-bordered table-striped table-hover align-middle">
-      <thead><tr><th>Curso</th><th>Área</th><th class="col-tiempo text-center">Tiempo</th><th>Estado</th><th class="text-center" id="encabezadoRindieron">Rindieron A</th><th>Acciones</th></tr></thead>
-      <tbody id="tablaCursos"></tbody>
-    </table>
+      <table class="table table-hover align-middle text-nowrap">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Curso</th>
+            <th>Área</th>
+            <th class="text-center">Tiempo</th>
+            <th>Estado</th>
+            <th class="text-center" id="encabezadoRindieron">Rindieron A</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tablaCursos"></tbody>
+      </table>
     </div>
     <div class="border rounded p-3 mt-3">
       <h3 class="h5">Compartir enlace con estudiantes</h3>
@@ -363,7 +319,7 @@
   </div>
   <div class="card shadow-sm mb-3">
     <div class="card-body">
-    <h3 class="h5">Resultados</h3>
+    <h3 class="h5">🏆 RANKING DE MEJORES NOTAS</h3>
     <div class="table-responsive">
     <table class="table table-bordered table-striped table-hover align-middle">
       <thead><tr><th>Apellidos y nombres</th><th>Curso</th><th>Área</th><th>Par.</th><th>Aciertos</th><th>Desaciertos</th><th>Nota /45</th><th>Fecha</th><th>Examen</th></tr></thead>

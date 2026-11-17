@@ -111,6 +111,8 @@ const AREAS = [
   "Ciencias Sociales", "Matemática", "Comunicación y Lenguajes", "Ciencias Naturales",
   "Técnica Tecnológica", "Educación Física y Deportes", "Artes Plásticas y Visuales", "Valores, Espiritualidad y Religiones"
 ];
+// Abrevia "Secundaria" a "Sec" (solo para vistas del administrador)
+const abreviarSecundaria = s => String(s || "").replace(/Secundaria/g, "Sec");
 
 // Preguntas de ejemplo con las que se crea cada curso (luego el administrador las edita)
 // c = índice de la respuesta correcta (empieza en 0)
@@ -1061,39 +1063,42 @@ function seleccionarParaleloCursos(paralelo) {
 
 function pintarCursos() {
   const esAdmin = rolPersonal === "admin";
-  $("tablaCursos").innerHTML = CURSOS.map(nombre => {
+  const html = CURSOS.map(nombre => {
     const id = cursoId(nombre), c = CACHE[id];
     if (!c) return "";
     const cant = porCurso(id).filter(r => r.paralelo === paraleloCursosSeleccionado).length;
-    const cantidadPreguntas = Number.isInteger(c.cantidadPreguntas) ? c.cantidadPreguntas : "sin dato";
     const acciones = [];
     if (esAdmin) {
       acciones.push(`<button class="btn btn-sm btn-primary" title="Guardar área y tiempo" onclick="guardarFila('${id}')">Guardar</button>`);
-      acciones.push(`<button class="btn btn-sm btn-secondary" title="Editar las preguntas del examen" onclick="editarPreguntas('${id}')">Preguntas (${cantidadPreguntas})</button>`);
       acciones.push(`<button class="btn btn-sm btn-danger" title="Depurar resultados del paralelo ${paraleloCursosSeleccionado}" onclick="eliminarRegistrosCurso('${id}', '${paraleloCursosSeleccionado}')">Depurar</button>`);
     }
-    acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>`);
     if (c.activo) {
       if (esAdmin) acciones.push(`<button class="btn btn-sm btn-danger" title="Concluir evaluación" onclick="alternarEstado('${id}')">Concluir</button>`);
     } else {
       if (esAdmin) acciones.push(`<button class="btn btn-sm btn-success" title="Reabrir evaluación" onclick="alternarEstado('${id}')">Reabrir</button>`);
-      acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar informe en PDF" onclick="descargarPDF('${id}')">⬇ PDF</button>`);
     }
-    return `<tr>
-      <td>${esc(c.nombre || nombre)}</td>
-      <td><select class="form-select form-select-sm" id="ar_${id}" ${esAdmin ? "" : "disabled"}>${AREAS.map(a => `<option ${a === c.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></td>
-      <td class="col-tiempo">
-        <div class="d-flex align-items-center gap-1">
-          <input class="form-control form-control-sm input-minutos" type="number" min="1" inputmode="numeric" id="mi_${id}" value="${Number(c.minutos) || 30}" ${esAdmin ? "" : "disabled"}>
-          <span class="unidad-min">min</span>
-        </div>
-      </td>
-      <td class="text-nowrap">${c.activo ? "🟢 Activa" : "🔒 Concluida"}</td>
-      <td class="text-center">${cant}</td>
-      <td><div class="acciones-curso">${acciones.join("")}</div></td>
-    </tr>`;
+    if (esAdmin) {
+      acciones.push(`<button class="btn btn-sm btn-secondary" title="Generar lista de notas" onclick="generarPromedios('${id}')">Notas</button>`);
+    }
+    acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>`);
+    const estado = c.activo ? "🟢 Activa" : "🔒 Concluida";
+    // Una sola fila por curso, alineada con los encabezados (scroll horizontal en móvil)
+    return `
+      <tr>
+        <td class="fw-semibold text-nowrap">${esc(abreviarSecundaria(c.nombre || nombre))}</td>
+        <td><select class="form-select form-select-sm w-auto" id="ar_${id}" ${esAdmin ? "" : "disabled"} title="${esc(c.area)}">${AREAS.map(a => `<option ${a === c.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></td>
+        <td>
+          <div class="input-group input-group-sm flex-nowrap w-auto">
+            <input class="form-control text-center" type="number" min="1" inputmode="numeric" id="mi_${id}" value="${Number(c.minutos) || 30}" ${esAdmin ? "" : "disabled"}>
+            <span class="input-group-text">min</span>
+          </div>
+        </td>
+        <td class="text-nowrap">${estado}</td>
+        <td class="text-center">${cant}</td>
+        <td><div class="d-flex flex-nowrap gap-1">${acciones.join("")}</div></td>
+      </tr>`;
   }).join("");
-  if (!$("tablaCursos").innerHTML) $("tablaCursos").innerHTML = "<tr><td colspan='6'>No hay cursos disponibles.</td></tr>";
+  $("tablaCursos").innerHTML = html || `<tr><td colspan="6" class="text-center text-secondary">No hay cursos disponibles.</td></tr>`;
 }
 
 // Guarda el área y el temporizador del curso.
@@ -1349,8 +1354,13 @@ function reporte() {
     dibujar(`gParalelo${paralelo}`, "pie", datosTorta(estadisticasParalelo));
   });
 
-  $("tabla").innerHTML = [...lista].sort(compararNomina).map(r => `
-    <tr><td>${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(r.curso)}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
+  $("tabla").innerHTML = [...lista].sort((a, b) => {
+    const na = a.calificadoEn ? Number(a.nota) || 0 : -1;
+    const nb = b.calificadoEn ? Number(b.nota) || 0 : -1;
+    if (nb !== na) return nb - na;
+    return compararNomina(a, b);
+  }).map(r => `
+    <tr><td>${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(abreviarSecundaria(r.curso))}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
     <td class="text-success fw-semibold">${r.aciertos}</td><td class="text-danger fw-semibold">${r.desaciertos}</td><td>${r.calificadoEn ? `${textoNota(r.nota)}/${NOTA_MAXIMA}` : "Pendiente"}</td>
     <td>${new Date(r.fecha).toLocaleString("es-BO")}</td>
     <td><button class="btn btn-sm btn-primary" onclick="descargarExamenEstudiante('${esc(r.id)}')">⬇ PDF</button></td></tr>`).join("");
@@ -1441,7 +1451,7 @@ async function descargarInformeCurso(id) {
     const doc = new window.jspdf.jsPDF();
 
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text(`Resumen de ${curso.nombre} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
+    doc.text(`Resumen de ${abreviarSecundaria(curso.nombre)} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
     doc.text(`Área: ${curso.area} · Generado: ${new Date().toLocaleString("es-BO")}`, 15, 26);
 
@@ -1495,6 +1505,43 @@ async function descargarInformeCurso(id) {
     doc.save(`informe_porcentajes_${id}_paralelo_${paralelo}.pdf`);
   } catch (e) {
     alert("No se pudo generar el informe del curso: " + e.message);
+  }
+}
+
+// Genera la lista de estudiantes con sus notas (redondeadas, número entero ≥ 5).
+async function generarPromedios(id) {
+  if (!exigirAccesoDescargas()) return;
+  const paralelo = paraleloExportacionSeleccionado();
+  if (!paralelo) return;
+  if (!CURSOS.some(nombre => cursoId(nombre) === id)) return alert("El curso seleccionado no es válido.");
+  if (!window.jspdf) return alert("No se cargó la librería PDF (revisa tu conexión).");
+
+  try {
+    RESULTADOS = await leerResultados();
+    const curso = CACHE[id];
+    if (!curso) return alert("No se encontró la configuración del curso y paralelo. Actualiza el reporte e inténtalo de nuevo.");
+
+    const lista = filtrarParalelo(porCurso(id), paralelo)
+      .map(r => ({ ...r, nota: Math.round(Number(r.nota) || 0) }))
+      .filter(r => Number.isInteger(r.nota) && r.nota >= 5);
+
+    const doc = new window.jspdf.jsPDF();
+    doc.setFontSize(16); doc.setFont("helvetica", "bold");
+    doc.text(`Notas - ${abreviarSecundaria(curso.nombre)} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
+    doc.setFontSize(12); doc.setFont("helvetica", "normal");
+    doc.text(`Área: ${curso.area} · Generado: ${new Date().toLocaleString("es-BO")}`, 15, 30);
+
+    if (!lista.length) {
+      doc.setFontSize(12); doc.setFont("helvetica", "normal");
+      doc.text("Sin notas registradas con nota entera igual o mayor a 5.", 15, 48);
+    } else {
+      const filasNotas = [...lista].sort(compararNomina).map((r, indice) => [String(indice + 1), `${r.apellidos} ${r.nombres}`, `${textoNota(r.nota)}`]);
+      tabla(doc, 48, ["#", "Apellidos y nombres", "Nota"], [10, 110, 40], filasNotas);
+    }
+
+    doc.save(`notas_${id}_paralelo_${paralelo}.pdf`);
+  } catch (e) {
+    alert("No se pudo generar las notas: " + e.message);
   }
 }
 
@@ -1568,7 +1615,7 @@ async function generarPDF(ids, archivo, titulo, paralelo) {
 
   const filas = ids.map(id => {
     const c = CACHE[id], s = stats(porParalelo(id));
-    return [c.nombre, c.area, s.n, `${textoNota(s.promedio)}/${NOTA_MAXIMA}`, s.aciertos, s.desaciertos];
+    return [abreviarSecundaria(c.nombre), c.area, s.n, `${textoNota(s.promedio)}/${NOTA_MAXIMA}`, s.aciertos, s.desaciertos];
   });
   y = tabla(doc, y, ["Curso", "Área", "Estud.", "Promedio", "Aciertos", "Desaciertos"], [40, 35, 22, 27, 27, 28], filas);
 
@@ -1627,7 +1674,7 @@ const descargarPDF = id => {
   if (!paralelo) return;
   if (!CURSOS.some(nombre => cursoId(nombre) === id)) return alert("El curso seleccionado no es válido.");
   const curso = CACHE[id] || { nombre: id };
-  return generarPDF([id], `resumen_${id}_paralelo_${paralelo}.pdf`, `Resumen de ${curso.nombre}`, paralelo);
+  return generarPDF([id], `resumen_${id}_paralelo_${paralelo}.pdf`, `Resumen de ${abreviarSecundaria(curso.nombre)}`, paralelo);
 };
 /* ---------- Importar un examen desde texto ---------- */
 let importadas = [];
