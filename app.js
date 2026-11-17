@@ -113,6 +113,8 @@ const AREAS = [
 ];
 // Abrevia "Secundaria" a "Sec" (solo para vistas del administrador)
 const abreviarSecundaria = s => String(s || "").replace(/Secundaria/g, "Sec");
+// Convierte texto a ASCII para evitar mojibake en PDFs (jsPDF usa fuente WinAnsi/cp1252)
+const aAscii = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x00-\x7F]/g, "?");
 
 // Preguntas de ejemplo con las que se crea cada curso (luego el administrador las edita)
 // c = índice de la respuesta correcta (empieza en 0)
@@ -1081,7 +1083,7 @@ function pintarCursos() {
       acciones.push(`<button class="btn btn-sm btn-secondary" title="Generar lista de notas" onclick="generarPromedios('${id}')">Notas</button>`);
     }
     acciones.push(`<button class="btn btn-sm btn-primary" title="Descargar reporte porcentual por paralelo" onclick="descargarInformeCurso('${id}')">⬇ Reporte %</button>`);
-    const estado = c.activo ? "🟢 Activa" : "🔒 Concluida";
+    const estado = c.activo ? "Activa" : "Concluida";
     // Una sola fila por curso, alineada con los encabezados (scroll horizontal en móvil)
     return `
       <tr>
@@ -1360,7 +1362,7 @@ function reporte() {
     if (nb !== na) return nb - na;
     return compararNomina(a, b);
   }).map(r => `
-    <tr><td>${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(abreviarSecundaria(r.curso))}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
+    <tr><td class="text-break">${esc(r.apellidos + " " + r.nombres)}</td><td>${esc(abreviarSecundaria(r.curso))}</td><td>${esc(r.area)}</td><td>${esc(r.paralelo)}</td>
     <td class="text-success fw-semibold">${r.aciertos}</td><td class="text-danger fw-semibold">${r.desaciertos}</td><td>${r.calificadoEn ? `${textoNota(r.nota)}/${NOTA_MAXIMA}` : "Pendiente"}</td>
     <td>${new Date(r.fecha).toLocaleString("es-BO")}</td>
     <td><button class="btn btn-sm btn-primary" onclick="descargarExamenEstudiante('${esc(r.id)}')">⬇ PDF</button></td></tr>`).join("");
@@ -1407,7 +1409,7 @@ async function descargarExamenEstudiante(id) {
   };
 
   escribir("Examen y resultado del estudiante", 15, 16, true, true);
-  escribir(`${r.apellidos} ${r.nombres} · ${r.curso} "${r.paralelo}" · ${r.area}`, 15, 10, false);
+  escribir(`${aAscii(r.apellidos + " " + r.nombres)} - ${abreviarSecundaria(r.curso)} "${r.paralelo}" - ${aAscii(r.area)}`, 15, 10, false);
   escribir(`Aciertos: ${r.aciertos} · Desaciertos: ${r.desaciertos} · Nota: ${textoNota(r.nota)}/${NOTA_MAXIMA}`, 15, 11, true);
   escribir(`Fecha: ${new Date(r.fecha).toLocaleString("es-BO")}`, 15, 9, false);
   if (!preguntas.some(pregunta => Number.isInteger(pregunta.c))) {
@@ -1453,7 +1455,7 @@ async function descargarInformeCurso(id) {
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
     doc.text(`Resumen de ${abreviarSecundaria(curso.nombre)} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text(`Área: ${curso.area} · Generado: ${new Date().toLocaleString("es-BO")}`, 15, 26);
+    doc.text(`Area: ${aAscii(curso.area)} - Generado: ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, 15, 26);
 
     let y = tabla(doc, 38, ["Indicador", "Resultado"], [105, 75], [
       ["Evaluaciones registradas", s.n],
@@ -1495,11 +1497,11 @@ async function descargarInformeCurso(id) {
       y += 5;
       const estudiantes = [...lista]
         .sort(compararNomina)
-        .map(r => [r.apellidos + " " + r.nombres, r.paralelo, r.aciertos, r.desaciertos, `${textoNota(r.nota)}/${NOTA_MAXIMA}`]);
+        .map(r => [aAscii(r.apellidos + " " + r.nombres), r.paralelo, r.aciertos, r.desaciertos, `${textoNota(r.nota)}/${NOTA_MAXIMA}`]);
       tabla(doc, y, ["Apellidos y nombres", "Par.", "Aciertos", "Desaciertos", "Nota /45"], [65, 20, 30, 30, 35], estudiantes);
     } else {
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      doc.text(`Aún no hay evaluaciones registradas para el paralelo ${paralelo}.`, 15, y + 8);
+      doc.text(`Aun no hay evaluaciones registradas para el paralelo ${paralelo}.`, 15, y + 8);
     }
 
     doc.save(`informe_porcentajes_${id}_paralelo_${paralelo}.pdf`);
@@ -1529,13 +1531,13 @@ async function generarPromedios(id) {
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
     doc.text(`Notas - ${abreviarSecundaria(curso.nombre)} - Paralelo ${paralelo}`.toLocaleUpperCase("es-BO"), doc.internal.pageSize.getWidth() / 2, 18, { align: "center" });
     doc.setFontSize(12); doc.setFont("helvetica", "normal");
-    doc.text(`Área: ${curso.area} · Generado: ${new Date().toLocaleString("es-BO")}`, 15, 30);
+    doc.text(`Area: ${aAscii(curso.area)} - Generado: ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, 15, 30);
 
     if (!lista.length) {
       doc.setFontSize(12); doc.setFont("helvetica", "normal");
       doc.text("Sin notas registradas con nota entera igual o mayor a 5.", 15, 48);
     } else {
-      const filasNotas = [...lista].sort(compararNomina).map((r, indice) => [String(indice + 1), `${r.apellidos} ${r.nombres}`, `${textoNota(r.nota)}`]);
+      const filasNotas = [...lista].sort(compararNomina).map((r, indice) => [String(indice + 1), aAscii(`${r.apellidos} ${r.nombres}`), `${textoNota(r.nota)}`]);
       tabla(doc, 48, ["#", "Apellidos y nombres", "Nota"], [10, 110, 40], filasNotas);
     }
 
